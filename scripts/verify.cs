@@ -52,8 +52,21 @@ try
     Require(File.ReadAllText(Path.Combine(tracking, "AnalyzerReleases.Shipped.md")).Contains("## Release 1.0.0", StringComparison.Ordinal),
         "Missing shipped 1.0.0 release tracking.");
     Require(File.ReadLines(Path.Combine(tracking, "AnalyzerReleases.Unshipped.md"))
-        .All(line => string.IsNullOrWhiteSpace(line) || line.StartsWith(';')),
-        "Unshipped release tracking must contain only comments or blank lines.");
+        .Where(line => !string.IsNullOrWhiteSpace(line))
+        .SequenceEqual(new[]
+        {
+            "## Unshipped",
+            "### New Rules",
+            "Rule ID | Category | Severity | Notes",
+            "--------|----------|----------|-------",
+            "### Removed Rules",
+            "Rule ID | Category | Severity | Notes",
+            "--------|----------|----------|-------",
+            "### Changed Rules",
+            "Rule ID | New Category | New Severity | Old Category | Old Severity | Notes",
+            "--------|--------------|--------------|--------------|--------------|-------"
+        }),
+        "Unshipped release tracking must retain the blank template.");
 
     var consumer = Directory.CreateTempSubdirectory("content-contract-consumer-").FullName;
     try
