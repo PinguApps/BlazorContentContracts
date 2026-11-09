@@ -6,7 +6,7 @@ The repository contains the solution, annotation assembly, analyzer host, smoke 
 
 ## Build and verify
 
-Install the SDK selected by `global.json` and Python 3, then run `python scripts/verify.py`.
+Install the SDK selected by `global.json`, then run `dotnet run --file scripts/verify.cs`.
 This builds the solution, runs the analyzer smoke test, packs both packages into
 `artifacts/packages`, checks their layouts and release tracking, and builds/runs an
 independent .NET 10 consumer restored from those exact packages with an isolated
