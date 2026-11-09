@@ -2,21 +2,22 @@
 
 Planned build-time checking of Blazor component content contracts. Component authors will describe permitted components, HTML elements and text; analyzers will check Razor usage, wrappers and forwarded fragments.
 
-The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. Contract attributes and diagnostics are forthcoming. No NuGet package has been released.
+The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. A minimal static restricted-slot slice reports BCC001 at original Razor tag spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
 
 ## Build and verify
 
 Install the SDK selected by `global.json`, then run `dotnet run --file scripts/verify.cs`.
-This builds the solution, runs the analyzer smoke test, packs both packages into
-`artifacts/packages`, checks their layouts and release tracking, and builds/runs an
+This builds the solution and packs both packages into
+`artifacts/packages`, then runs the smoke test and real Razor SDK build scenarios against those packages.
+It checks package layouts and release tracking, and builds/runs an
 independent .NET 10 consumer restored from those exact packages with an isolated
 package cache. The consumer checks analyzer discovery and runtime dependency separation.
 CI runs the same command and retains the NuGet artifacts without publishing them.
 
 The annotation package has no Roslyn dependency. The analyzer package carries its
 assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
-assets. Automatic transitive activation and Razor diagnostics are later work.
-There are currently no diagnostic rules. Add future rules directly to
+assets. Automatic transitive activation remains later work; Razor diagnostics require explicit additional-source setup.
+BCC001 checks exact direct component types in the qualified static slice. Add future rules directly to
 `AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
 retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.
 The verification command disables .NET's automatic global-tools PATH integration

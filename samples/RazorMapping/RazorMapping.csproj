@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ErrorLog>$(BaseIntermediateOutputPath)diagnostics.sarif</ErrorLog>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="PinguApps.BlazorContentContracts" />
+    <PackageReference Include="PinguApps.BlazorContentContracts.Analyzers" />
+    <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**" />
+  </ItemGroup>
+</Project>

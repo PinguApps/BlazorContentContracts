@@ -29,12 +29,14 @@ var persistentPaths = PersistentPaths();
 try
 {
     Run(root, "build", "-c", "Release");
-    Run(root, "test", "-c", "Release", "--no-build");
+
 
     var output = Path.Combine(root, "artifacts", "packages");
     Directory.CreateDirectory(output);
 
     Run(root, "pack", "-c", "Release", "--no-build", "-o", output);
+
+    Run(root, "test", "-c", "Release", "--no-build");
 
     const string prefix = "PinguApps.BlazorContentContracts";
 
@@ -142,6 +144,8 @@ void Run(string cwd, params string[] arguments)
         start.ArgumentList.Add(argument);
     }
 
+    start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
+    start.Environment["DOTNET_HOST_PATH"] = dotnet!;
     start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
     start.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
     start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
