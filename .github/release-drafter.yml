@@ -1,0 +1,59 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+tag-prefix: "v"
+version-template: "$MAJOR.$MINOR.$PATCH$PRERELEASE"
+categories:
+  - title: "🔒 Security"
+    when:
+      labels:
+        - "security"
+  - title: "🚀 Features"
+    when:
+      labels:
+        - "feature"
+        - "enhancement"
+  - title: "🐛 Bug Fixes"
+    when:
+      labels:
+        - "bug"
+        - "fix"
+  - title: "📄 Documentation"
+    when:
+      labels:
+        - "docs"
+        - "documentation"
+  - title: "🔗 Dependencies"
+    when:
+      labels:
+        - "dependencies"
+  - title: "🌀 Meta"
+    when:
+      labels:
+        - "meta"
+  - type: "version-resolver"
+    semver-increment: "major"
+    when:
+      labels:
+        - major
+  - type: "version-resolver"
+    semver-increment: "minor"
+    when:
+      labels:
+        - minor
+  - type: "version-resolver"
+    semver-increment: "patch"
+    when:
+      labels:
+        - patch
+  - type: "version-resolver"
+    semver-increment: "patch"
+change-template: "- [#$NUMBER] $TITLE - Thanks to @$AUTHOR!"
+change-title-escapes: '\<*_&'
+template: |
+  ## Changes
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
