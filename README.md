@@ -7,8 +7,9 @@ The repository contains the solution, annotation assembly, analyzer host, smoke 
 ## Build and verify
 
 Install the SDK selected by `global.json`, then run `dotnet run --file scripts/verify.cs`.
-This builds the solution, runs the analyzer smoke test, packs both packages into
-`artifacts/packages`, checks their layouts and release tracking, and builds/runs an
+This builds the solution and packs both packages into
+`artifacts/packages`, then runs the smoke test and real Razor SDK build scenarios against those packages.
+It checks package layouts and release tracking, and builds/runs an
 independent .NET 10 consumer restored from those exact packages with an isolated
 package cache. The consumer checks analyzer discovery and runtime dependency separation.
 CI runs the same command and retains the NuGet artifacts without publishing them.

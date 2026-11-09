@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Description>Build-time analyzers for Blazor component content contracts. Foundation package; diagnostics are forthcoming.</Description>
+    <Description>Build-time analyzers for Blazor content contracts, with original Razor diagnostics for a bounded static restricted-slot slice.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
