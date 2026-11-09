@@ -5,6 +5,7 @@
 Apply these conventions to all authored `.cs` files, including scripts and tests.
 Use `scripts/verify.cs` as the formatting example.
 
+- Declare only one type (class, record, struct, enum, interface or delegate) per file, and name the file after that type. Apply this to authored test-fixture source too.
 - Use braces for every control-flow body, including a single statement.
 - Insert a blank line before a statement or declaration that introduces a brace level (such as `if`, `try`, `foreach`, or a method), except immediately inside an opening brace. Keep the opening brace on its own line.
 - Follow a closing brace with a blank line before the next statement or declaration. Consecutive closing braces may remain adjacent.

@@ -49,16 +49,29 @@ internal sealed class RazorBuildFixture : IDisposable
             </Project>
             """);
         File.WriteAllText(Path.Combine(directory, "Usage.razor"), content);
-        File.WriteAllText(Path.Combine(directory, "Components.cs"), """
+        File.WriteAllText(Path.Combine(directory, "Slot.cs"), """
             using Microsoft.AspNetCore.Components;
             using PinguApps.BlazorContentContracts;
+
             public class Slot : ComponentBase
             {
                 [Parameter, AllowedChildren(typeof(Good))]
                 public RenderFragment ChildContent { get; set; }
             }
-            public class Good : ComponentBase { }
-            public class Bad : ComponentBase { }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Good.cs"), """
+            using Microsoft.AspNetCore.Components;
+
+            public class Good : ComponentBase
+            {
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Bad.cs"), """
+            using Microsoft.AspNetCore.Components;
+
+            public class Bad : ComponentBase
+            {
+            }
             """);
     }
 
