@@ -54,7 +54,6 @@ try
         {
             Require(!names.Any(name => name.StartsWith("lib/", StringComparison.Ordinal)), $"{package}: unexpected runtime assets");
         }
-
     }
 
     var tracking = Path.Combine(root, "src", prefix + ".Analyzers");
@@ -122,7 +121,6 @@ try
     {
         Directory.Delete(consumer, recursive: true);
     }
-
 }
 
 finally
@@ -156,12 +154,10 @@ void Run(string cwd, params string[] arguments)
 
 static void Require(bool condition, string message)
 {
-
     if (!condition)
     {
         throw new InvalidOperationException(message);
     }
-
 }
 
 static (string? User, string? Machine) PersistentPaths() => OperatingSystem.IsWindows()
