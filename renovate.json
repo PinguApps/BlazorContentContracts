@@ -2,5 +2,25 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>PinguApps/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "Keep the qualified SDK and bundled Razor tooling in the .NET 10.0.4xx feature band.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["dotnet-sdk"],
+      "allowedVersions": "/^10\\.0\\.4[0-9]{2}$/"
+    },
+    {
+      "description": "Keep compiler dependencies on the qualified Roslyn 5.9 baseline.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["Microsoft.CodeAnalysis.CSharp", "Microsoft.CodeAnalysis.Analyzers"],
+      "allowedVersions": "/^5\\.9\\.[0-9]+$/"
+    },
+    {
+      "description": "Own-package versions select artifacts built by this repository, not external feed updates.",
+      "matchManagers": ["nuget"],
+      "matchPackageNames": ["PinguApps.BlazorContentContracts", "PinguApps.BlazorContentContracts.Analyzers"],
+      "enabled": false
+    }
   ]
 }
