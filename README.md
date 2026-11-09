@@ -55,6 +55,32 @@ The [Linear project](https://linear.app/pinguapps/project/blazorcontentcontracts
 
 No publishing credentials are needed for this setup.
 
+## Release drafts and package metadata
+
+The PR template's checked categories become labels and Release Drafter groups
+merged PRs into release notes, including `dependencies`. Select `patch`, `minor`
+or `major` for the intended package compatibility impact; the highest selected
+increment wins, with patch as the default. Breaking API or diagnostic behaviour
+requires major; additive compatible behaviour uses minor; fixes use patch.
+Renovate's `type/*` labels describe dependency updates, not this package's SemVer.
+
+Pushes to `main` and manual dispatch of Release Drafter update a draft with
+matching `v`-prefixed names and tags. Drafting never publishes a release or NuGet
+package. Before the first stable release, the maintainer must deliberately set
+and verify both draft name and tag to `v1.0.0`; the resolver's initial suggestion
+is not approval to publish. Preview releases are deliberate manual work: use a
+matching name/tag such as `v1.0.0-preview.1` and mark the release as a prerelease.
+Do not treat an automatically updated stable draft as a preview, or publish it
+without the later release workflow and human first-publication gate. Weekly
+publication remains inactive until its separate qualification and approval.
+
+Both packages embed this README and the MIT licence, with PinguApps author and
+repository metadata. The .NET SDK supplies GitHub SourceLink; deterministic
+builds embed untracked sources and CI normalizes source paths. Portable symbols
+are produced as `.snupkg` artifacts; the analyzer also carries its PDB beside its
+assembly under `analyzers/dotnet/cs`, without adding runtime assets or compiler
+dependencies. These settings preserve the existing framework/compiler matrix.
+
 ## Dependency maintenance
 
 Renovate uses the shared `local>PinguApps/renovate-config` preset, including

@@ -6,10 +6,11 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Reflection.Metadata;
 using System.Text.Json;
+using System.Xml.Linq;
 
-var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, ".."));
+var root = Directory.GetCurrentDirectory();
 var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
 
 if (string.IsNullOrEmpty(dotnet))
@@ -49,6 +50,37 @@ try
         using var archive = ZipFile.OpenRead(Path.Combine(output, $"{package}.1.0.0.nupkg"));
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
         Require(names.Contains(expected), $"{package}: missing {expected}");
+        Require(names.Contains("README.md") && names.Contains("LICENSE"), $"{package}: missing package documentation");
+
+        using var manifest = archive.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
+        var metadata = XDocument.Load(manifest).Descendants().Single(element => element.Name.LocalName == "metadata");
+        Require(metadata.Elements().Any(element => element.Name.LocalName == "authors" && element.Value == "PinguApps"),
+            $"{package}: missing author");
+        Require(metadata.Elements().Any(element => element.Name.LocalName == "license" && element.Value == "MIT"),
+            $"{package}: missing MIT licence");
+        Require(metadata.Elements().Any(element => element.Name.LocalName == "readme" && element.Value == "README.md"),
+            $"{package}: missing README metadata");
+        Require(metadata.Elements().Any(element => element.Name.LocalName == "repository"
+            && (string?)element.Attribute("url") == "https://github.com/PinguApps/BlazorContentContracts"
+            && !string.IsNullOrEmpty((string?)element.Attribute("commit"))), $"{package}: missing repository commit metadata");
+
+        using var symbols = ZipFile.OpenRead(Path.Combine(output, $"{package}.1.0.0.snupkg"));
+        var pdb = symbols.Entries.Single(entry => entry.FullName.EndsWith(".pdb", StringComparison.Ordinal));
+        using var pdbStream = new MemoryStream();
+        using (var source = pdb.Open())
+        {
+            source.CopyTo(pdbStream);
+        }
+
+        pdbStream.Position = 0;
+        using var provider = MetadataReaderProvider.FromPortablePdbStream(pdbStream);
+        var reader = provider.GetMetadataReader();
+        var sourceLinkKind = new Guid("CC110556-A091-4D38-9FEC-25AB9A351A6A");
+        var sourceLink = reader.CustomDebugInformation.Select(reader.GetCustomDebugInformation)
+            .Single(info => reader.GetGuid(info.Kind) == sourceLinkKind);
+        var sourceLinkJson = System.Text.Encoding.UTF8.GetString(reader.GetBlobBytes(sourceLink.Value));
+        Require(sourceLinkJson.Contains("raw.githubusercontent.com/PinguApps/BlazorContentContracts/", StringComparison.Ordinal),
+            $"{package}: missing GitHub SourceLink mapping");
         Require(!names.Any(name => name.Contains("CodeAnalysis", StringComparison.Ordinal)),
             $"{package}: bundled Roslyn assets");
 
@@ -168,5 +200,3 @@ static (string? User, string? Machine) PersistentPaths() => OperatingSystem.IsWi
     ? (Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
        Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine))
     : (null, null);
-
-static string SourcePath([CallerFilePath] string path = "") => path;
