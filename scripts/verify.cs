@@ -7,11 +7,10 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Xml.Linq;
 
-var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, ".."));
+var root = Directory.GetCurrentDirectory();
 var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
 
 if (string.IsNullOrEmpty(dotnet))
@@ -202,4 +201,3 @@ static (string? User, string? Machine) PersistentPaths() => OperatingSystem.IsWi
        Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine))
     : (null, null);
 
-static string SourcePath([CallerFilePath] string path = "") => path;
