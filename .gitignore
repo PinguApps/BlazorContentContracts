@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+.vs/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.feature.cs
