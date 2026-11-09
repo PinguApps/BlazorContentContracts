@@ -200,4 +200,3 @@ static (string? User, string? Machine) PersistentPaths() => OperatingSystem.IsWi
     ? (Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
        Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine))
     : (null, null);
-
