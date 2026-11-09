@@ -64,10 +64,15 @@ confirms hosted access and detection of central NuGet versions, `global.json`
 (through the NuGet manager), and GitHub Actions. No separate workflow is required.
 Default manager discovery remains enabled for future toolchain files.
 
-Local rules keep SDK updates within `10.0.4xx` (including bundled Razor tooling)
-and compiler package updates within Roslyn `5.9.x`. Moving those baselines requires
-a deliberate compatibility change and qualification of the version-specific
-Razor sample and real consumers. Ordinary test dependencies and pinned Actions
+Local rules allow newer SDK and compiler versions to appear in the dashboard,
+including new SDK feature bands and .NET major versions such as .NET 11.
+Updates outside the qualified SDK `10.0.4xx` band (including bundled Razor tooling)
+or Roslyn `5.9.x` baseline require Dependency Dashboard approval before Renovate
+creates a PR; patch updates within those baselines follow the shared policy.
+Approve the dashboard entry to request an upgrade PR, then qualify the
+version-specific Razor sample and real consumers before merging it. Update these
+approval rules when qualifying a new baseline. Using a newer build SDK does not
+by itself change the supported consumer target framework. Ordinary test dependencies and pinned Actions
 continue to receive update proposals under the shared policy; no broad automerge
 is enabled. The two own-package references are maintained with local package
 artifacts and release versions, so Renovate does not look them up on NuGet.org.
