@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PinguApps.BlazorContentContracts/PinguApps.BlazorContentContracts.csproj" />
+    <Project Path="src/PinguApps.BlazorContentContracts.Analyzers/PinguApps.BlazorContentContracts.Analyzers.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PinguApps.BlazorContentContracts.Tests/PinguApps.BlazorContentContracts.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Build-time content contracts for Blazor components. Foundation package; contract attributes are forthcoming.</Description>
+  </PropertyGroup>
+</Project>
