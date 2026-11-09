@@ -6,3 +6,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+BCC001 | ContentContracts | Error | A direct child component violates a restricted fragment contract
