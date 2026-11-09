@@ -14,4 +14,3 @@ public sealed class Good : ComponentBase
 public sealed class Bad : ComponentBase
 {
 }
-

@@ -12,4 +12,3 @@
     <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**" />
   </ItemGroup>
 </Project>
-
