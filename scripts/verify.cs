@@ -55,7 +55,6 @@ try
         .Where(line => !string.IsNullOrWhiteSpace(line))
         .SequenceEqual(new[]
         {
-            "## Unshipped",
             "### New Rules",
             "Rule ID | Category | Severity | Notes",
             "--------|----------|----------|-------",
