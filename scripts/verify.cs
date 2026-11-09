@@ -34,7 +34,6 @@ try
     var output = Path.Combine(root, "artifacts", "packages");
     Directory.CreateDirectory(output);
 
-
     Run(root, "pack", "-c", "Release", "--no-build", "-o", output);
 
     const string prefix = "PinguApps.BlazorContentContracts";
@@ -57,7 +56,6 @@ try
         }
 
     }
-
 
     var tracking = Path.Combine(root, "src", prefix + ".Analyzers");
     Require(File.ReadAllText(Path.Combine(tracking, "AnalyzerReleases.Shipped.md")).Contains("## Release 1.0.0", StringComparison.Ordinal),
@@ -156,7 +154,6 @@ void Run(string cwd, params string[] arguments)
     Require(process.ExitCode == 0, $"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}.");
 }
 
-
 static void Require(bool condition, string message)
 {
 
@@ -166,7 +163,6 @@ static void Require(bool condition, string message)
     }
 
 }
-
 
 static (string? User, string? Machine) PersistentPaths() => OperatingSystem.IsWindows()
     ? (Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
