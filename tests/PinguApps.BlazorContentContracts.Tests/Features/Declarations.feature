@@ -11,6 +11,8 @@ Feature: Public contract declarations
       | components | none |
       | html | none |
       | typed | none |
+      | nullable | none |
+      | inherited parameter | none |
       | output | none |
       | method | none |
       | typed method | none |
@@ -30,9 +32,11 @@ Feature: Public contract declarations
       | missing forward | BCC002 |
       | duplicate forward | BCC002 |
       | hidden forward | BCC002 |
+      | inherited hidden forward | BCC002 |
       | conflicting override | BCC003 |
       | conflicting output | BCC003 |
       | conflicting forwarding | BCC003 |
+      | conflicting method | BCC003 |
 
   Scenario: Public schema survives compilation
     Given a contract declaration 'forwarding'

@@ -60,6 +60,7 @@ internal sealed class RazorBuildFixture : IDisposable
                 public RenderFragment ChildContent { get; set; }
             }
             """);
+
         if (kind is "declarations" or "malformed declarations")
         {
             var element = kind == "declarations" ? "div" : "<div>";

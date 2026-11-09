@@ -29,6 +29,8 @@ public sealed class DeclarationSteps
             "components" => "[Parameter, AllowedChildren(typeof(Fixture))] public RenderFragment ChildContent { get; set; }",
             "html" => "[Parameter, AllowedChildren(HtmlElements = new[] { \"div\", \"my-element\", \"SVG\" }, AllowText = true)] public RenderFragment ChildContent { get; set; }",
             "typed" => "[Parameter, AllowedChildren] public RenderFragment<int> ChildContent { get; set; }",
+            "nullable" => "[Parameter, AllowedChildren] public RenderFragment? ChildContent { get; set; }",
+            "inherited parameter" => "public override RenderFragment ChildContent { get; set; }",
             "method" => "[ProducesContent(typeof(Fixture))] public RenderFragment Content() => throw new Exception();",
             "typed method" => "[ProducesContent] public RenderFragment<int> Content() => throw new Exception();",
             "invalid type" => "[Parameter, AllowedChildren(typeof(string))] public RenderFragment ChildContent { get; set; }",
@@ -41,11 +43,13 @@ public sealed class DeclarationSteps
             "static parameter" => "[Parameter, AllowedChildren] public static RenderFragment ChildContent { get; set; }",
             "forwarding" => "[Parameter, AllowedChildren(typeof(Fixture), HtmlElements = new[] { \"span\" }, AllowText = true)] public RenderFragment ChildContent { get; set; }",
             "wrong method" => "[ProducesContent] public string Content() => throw new Exception();",
-            "hidden forward" => "public new string ChildContent { get; set; }",
+            "hidden forward" or "inherited hidden forward" => "public new string ChildContent { get; set; }",
+            "conflicting method" => "[ProducesContent(AllowText = true)] public override RenderFragment Content() => throw new Exception();",
             "identical override" => "[Parameter, AllowedChildren(typeof(Fixture))] public override RenderFragment ChildContent { get; set; }",
             "conflicting override" => "[Parameter, AllowedChildren(AllowText = true)] public override RenderFragment ChildContent { get; set; }",
             _ => "[Parameter] public RenderFragment ChildContent { get; set; }"
         };
+
         var attributes = declaration switch
         {
             "output" => "[ProducesContent(HtmlElements = new[] { \"div\" })]",
@@ -58,7 +62,8 @@ public sealed class DeclarationSteps
             _ => ""
         };
         var inherits = declaration.Contains("override", StringComparison.Ordinal)
-            || declaration is "inherited forwarding" or "hidden forward" or "conflicting output" or "conflicting forwarding";
+            || declaration is "inherited forwarding" or "hidden forward" or "conflicting output" or "conflicting forwarding"
+                or "inherited hidden forward" or "inherited parameter" or "conflicting method";
         var baseName = declaration == "wrong component" ? "object" : inherits ? "BaseFixture" : "ComponentBase";
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Append(typeof(ComponentBase).Assembly.Location).Append(typeof(AllowedChildrenAttribute).Assembly.Location)
@@ -67,10 +72,11 @@ public sealed class DeclarationSteps
         var sources = new[]
         {
             CSharpSyntaxTree.ParseText(imports + attributes + " public class Fixture : " + baseName + " { " + body + " }", path: "Fixture.cs"),
-            CSharpSyntaxTree.ParseText(imports + "[ProducesContent, ForwardsContent(\"ChildContent\")] public class BaseFixture : ComponentBase { [Parameter, AllowedChildren(typeof(Fixture))] public virtual RenderFragment ChildContent { get; set; } [Parameter] public RenderFragment Other { get; set; } }", path: "BaseFixture.cs")
+            CSharpSyntaxTree.ParseText(imports + "[ProducesContent, ForwardsContent(\"ChildContent\")] public class BaseFixture : ComponentBase { [Parameter, AllowedChildren(typeof(Fixture))] public virtual RenderFragment ChildContent { get; set; } [Parameter] public RenderFragment Other { get; set; } [ProducesContent] public virtual RenderFragment Content() => throw new Exception(); }", path: "BaseFixture.cs")
         };
+
         compilation = CSharpCompilation.Create("DeclarationConsumer", sources, references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
         Assert.DoesNotContain(compilation.GetDiagnostics(), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
     }
