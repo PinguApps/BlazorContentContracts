@@ -10,3 +10,13 @@ Feature: Real Razor build diagnostics
             | valid   | none |
             | empty   | none |
             | comment | one error |
+
+    Scenario Outline: Declaration annotations work in a real packaged Razor consumer
+        Given a Razor consumer with "<content>" content
+        When the real Razor SDK builds the consumer
+        Then the build has "<outcome>" declaration diagnostics
+
+        Examples:
+            | content                | outcome   |
+            | declarations           | none      |
+            | malformed declarations | one error |

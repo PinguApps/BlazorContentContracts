@@ -12,4 +12,10 @@ public sealed class AllowedChildrenAttribute : Attribute
     }
 
     public Type[] ComponentTypes { get; }
+
+    /// <summary>Permitted HTML tag names. Empty by default; matching is case-insensitive.</summary>
+    public string[] HtmlElements { get; set; } = Array.Empty<string>();
+
+    /// <summary>Whether visible text is permitted. Empty content is always permitted.</summary>
+    public bool AllowText { get; set; }
 }

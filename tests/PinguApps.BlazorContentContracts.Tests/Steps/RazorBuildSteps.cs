@@ -27,6 +27,12 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.ThenDiagnostics(expected);
     }
 
+    [Then("the build has {string} declaration diagnostics")]
+    public void ThenDeclarationDiagnostics(string expected)
+    {
+        fixture.ThenDeclarationDiagnostics(expected);
+    }
+
     public void Dispose()
     {
         fixture.Dispose();

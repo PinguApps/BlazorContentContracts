@@ -54,3 +54,11 @@ The [Linear project](https://linear.app/pinguapps/project/blazorcontentcontracts
 - PIN-1273, PIN-1275 and PIN-1276: release workflow, trusted publishing access and first stable publication.
 
 No publishing credentials are needed for this setup.
+
+## Public contract declarations
+
+`AllowedChildren`, `ProducesContent` and `ForwardsContent` describe fragment inputs,
+fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
+for supported targets, defaults, examples and inheritance rules. BCC002 validates
+declarations and BCC003 rejects conflicting inherited declarations without executing
+application code. Output implementation validation and composition remain later work.

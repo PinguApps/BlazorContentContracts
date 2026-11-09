@@ -27,6 +27,7 @@ internal sealed class RazorBuildFixture : IDisposable
             "valid" => "<Slot><Good /></Slot>",
             "empty" => "<Slot />",
             "comment" => "@* <Bad /> *@\n<Slot>\n    <Bad />\n</Slot>",
+            "declarations" or "malformed declarations" => "<Slot />",
             _ => throw new ArgumentException(kind)
         };
         var packages = Environment.GetEnvironmentVariable("BCC_PACKAGES");
@@ -59,6 +60,26 @@ internal sealed class RazorBuildFixture : IDisposable
                 public RenderFragment ChildContent { get; set; }
             }
             """);
+
+        if (kind is "declarations" or "malformed declarations")
+        {
+            var element = kind == "declarations" ? "div" : "<div>";
+            File.WriteAllText(Path.Combine(directory, "Declared.cs"), $$"""
+                using Microsoft.AspNetCore.Components;
+                using PinguApps.BlazorContentContracts;
+
+                [ProducesContent(HtmlElements = new[] { "{{element}}" }), ForwardsContent(nameof(Template))]
+                public class Declared<T> : ComponentBase
+                {
+                    [Parameter, AllowedChildren(typeof(Declared<>), typeof(Declared<int>), HtmlElements = new[] { "span" })]
+                    public RenderFragment<T> Template { get; set; }
+
+                    [ProducesContent(AllowText = true)]
+                    public RenderFragment Content() => throw new System.Exception("Must never execute during analysis");
+                }
+                """);
+        }
+
         File.WriteAllText(Path.Combine(directory, "Good.cs"), """
             using Microsoft.AspNetCore.Components;
 
@@ -130,6 +151,28 @@ internal sealed class RazorBuildFixture : IDisposable
             Assert.Equal(line, region.GetProperty("startLine").GetInt32());
             Assert.Equal(6, region.GetProperty("startColumn").GetInt32());
             Assert.Equal(9, region.GetProperty("endColumn").GetInt32());
+        }
+
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+    }
+
+    public void ThenDeclarationDiagnostics(string expected)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var declarations = results.Where(result => result.GetProperty("ruleId").GetString() == "BCC002").ToArray();
+
+        if (expected == "none")
+        {
+            Assert.True(exitCode == 0, output);
+            Assert.Empty(declarations);
+        }
+        else
+        {
+            Assert.True(exitCode != 0, output);
+            var diagnostic = Assert.Single(declarations);
+            Assert.Contains("HtmlElements", diagnostic.GetProperty("message").GetString());
+            Assert.EndsWith("Declared.cs", diagnostic.GetProperty("locations")[0].GetProperty("resultFile").GetProperty("uri").GetString());
         }
 
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
