@@ -4,10 +4,13 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+if sys.flags.optimize:
+    raise SystemExit("Run verification without Python optimization (-O/PYTHONOPTIMIZE).")
 DOTNET = shutil.which("dotnet")
 if not DOTNET:
     raise RuntimeError("Install the SDK selected by global.json first")
