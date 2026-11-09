@@ -55,6 +55,28 @@ The [Linear project](https://linear.app/pinguapps/project/blazorcontentcontracts
 
 No publishing credentials are needed for this setup.
 
+## Dependency maintenance
+
+Renovate uses the shared `local>PinguApps/renovate-config` preset, including
+reviewers, dependency labels, release-age delays and GitHub Action SHA pinning.
+Its [Dependency Dashboard](https://github.com/PinguApps/BlazorContentContracts/issues/3)
+confirms hosted access and detection of central NuGet versions, `global.json`
+(through the NuGet manager), and GitHub Actions. No separate workflow is required.
+Default manager discovery remains enabled for future toolchain files.
+
+Local rules keep SDK updates within `10.0.4xx` (including bundled Razor tooling)
+and compiler package updates within Roslyn `5.9.x`. Moving those baselines requires
+a deliberate compatibility change and qualification of the version-specific
+Razor sample and real consumers. Ordinary test dependencies and pinned Actions
+continue to receive update proposals under the shared policy; no broad automerge
+is enabled. The two own-package references are maintained with local package
+artifacts and release versions, so Renovate does not look them up on NuGet.org.
+Samples and tests remain discoverable rather than receiving blanket exclusions.
+
+The planned weekly publishing channel includes dependency changes merged into
+`main`. Open or unmerged Renovate PRs are not included. Publishing setup and
+activation remain separate release work.
+
 ## Public contract declarations
 
 `AllowedChildren`, `ProducesContent` and `ForwardsContent` describe fragment inputs,
