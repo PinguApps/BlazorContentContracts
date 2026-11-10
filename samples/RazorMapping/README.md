@@ -31,9 +31,9 @@ local suppression work; this PR ignores comments but implements no suppression.
 For static markup the mapper pairs component opening tags with semantic generated
 calls in source order, checks counts and names, and creates an external-file
 location over the original tag name. Comments are masked without shifting offsets.
-A mismatch or Razor transition outside comments prevents mapping and reporting.
+A count/name mismatch uses the start of the Razor source as a fallback diagnostic location.
 This is a deliberately bounded foundation, not a complete Razor parser.
-Explicit named templates, directives other than using, expressions, wrapper output, HTML/text rules and dynamic fragments are not qualified
+Explicit named templates, directives other than using, wrapper output and dynamic fragments are not qualified
 by this slice. They must not be interpreted as validated because a build passes.
 Automatic transitive activation and automatic source inclusion remain later work.
 

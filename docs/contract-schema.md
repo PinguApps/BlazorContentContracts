@@ -66,6 +66,13 @@ public class Panel : ComponentBase
 }
 ```
 
-Declarations and static direct component usages are validated. BCC001 matches exact and derived types, open/closed generic families and inherited parameter contracts. Allowed components are terminal boundaries. Implementation truth, recursive HTML/text validation and forwarding composition remain later work.
+Declarations and static direct component usages are validated. BCC001 matches exact and derived types, open/closed generic families and inherited parameter contracts. Allowed components are terminal boundaries. HTML containers are checked recursively within each static slot, including HTML-only
+contracts. HTML, custom elements and SVG local names all use ordinal case-insensitive
+matching (for example `linearGradient` matches `lineargradient`); names with namespace
+prefixes are unsupported. Text permission applies inside containers too. Razor comments,
+HTML comments and whitespace are ignored; decoded visible entities count as text.
+`BCC005` rejects HTML/text; `BCC004` warns for opaque `MarkupString` and unresolved
+expressions, even when text is allowed. Constant text expressions are checked without
+executing code. Wrapper implementation and forwarding composition remain later work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.

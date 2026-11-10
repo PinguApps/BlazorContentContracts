@@ -17,7 +17,15 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         "BCC001", "Invalid child component", "Component '{0}' is not allowed in '{1}.{2}'",
         "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild);
+    private static readonly DiagnosticDescriptor InvalidMarkup = new(
+        "BCC005", "Invalid HTML or text", "{0} is not allowed in '{1}.{2}'",
+        "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor UnknownMarkup = new(
+        "BCC004", "Unresolved markup output", "Markup output in '{0}.{1}' cannot be analysed; use inspectable content",
+        "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -60,6 +68,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             }
 
             INamedTypeSymbol? owner = null;
+            Location? ownerLocation = null;
 
             foreach (var statement in block.Statements.OfType<ExpressionStatementSyntax>())
             {
@@ -73,6 +82,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 if (IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
                 {
                     owner = ComponentType(call, context.SemanticModel, context.CancellationToken);
+                    ownerLocation = locations.TryGetValue(call.SpanStart, out var mappedOwner) ? mappedOwner : null;
                 }
                 else if (IsBuilderCall(call, "CloseComponent", context.SemanticModel, context.CancellationToken))
                 {
@@ -98,16 +108,109 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         continue;
                     }
 
-                    foreach (var child in content.Statements.OfType<ExpressionStatementSyntax>()
-                        .Select(item => item.Expression).OfType<InvocationExpressionSyntax>()
-                        .Where(item => IsBuilderCall(item, "OpenComponent", context.SemanticModel, context.CancellationToken)))
-                    {
-                        var type = ComponentType(child, context.SemanticModel, context.CancellationToken);
+                    var fallback = ownerLocation ?? Location.Create(file!.Path,
+                        new TextSpan(0, 1), source.Lines.GetLinePositionSpan(new TextSpan(0, 1)));
+                    var html = contract.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
+                    var names = html.Kind == TypedConstantKind.Array && !html.IsNull
+                        ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
+                    var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
+                    var componentDepth = 0;
 
-                        if (type != null && !allowed.Any(item => Matches(item, type))
-                            && locations.TryGetValue(child.SpanStart, out var location))
+                    foreach (var child in content.Statements.OfType<ExpressionStatementSyntax>()
+                        .Select(item => item.Expression).OfType<InvocationExpressionSyntax>())
+                    {
+                        if (IsBuilderCall(child, "CloseComponent", context.SemanticModel, context.CancellationToken))
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidChild, location, type.Name, owner.Name, parameter));
+                            componentDepth--;
+                            continue;
+                        }
+
+                        if (IsBuilderCall(child, "OpenComponent", context.SemanticModel, context.CancellationToken))
+                        {
+                            var nested = componentDepth != 0;
+
+                            if (context.SemanticModel.GetSymbolInfo(child, context.CancellationToken).Symbol is IMethodSymbol opening
+                                && opening.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
+                            {
+                                componentDepth++;
+                            }
+
+                            if (nested)
+                            {
+                                continue;
+                            }
+
+                            var type = ComponentType(child, context.SemanticModel, context.CancellationToken);
+
+                            if (type != null && !allowed.Any(item => Matches(item, type)))
+                            {
+                                var location = locations.TryGetValue(child.SpanStart, out var mapped) ? mapped : fallback;
+                                context.ReportDiagnostic(Diagnostic.Create(InvalidChild, location, type.Name, owner.Name, parameter));
+                            }
+
+                            continue;
+                        }
+
+                        if (componentDepth != 0 || child.ArgumentList.Arguments.Count < 2)
+                        {
+                            continue;
+                        }
+
+                        var expression = child.ArgumentList.Arguments[1].Expression;
+                        var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
+
+                        if (IsBuilderCall(child, "OpenElement", context.SemanticModel, context.CancellationToken)
+                            && constant.Value is string name)
+                        {
+                            CheckElement(name);
+                        }
+                        else if (IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken)
+                            && constant.Value is string markup)
+                        {
+                            // Only Razor's literal markup calls are parsed; MarkupString output stays opaque.
+                            var remaining = Regex.Replace(markup, @"<!--[\s\S]*?-->|</?[A-Za-z](?:""[^""]*""|'[^']*'|[^'"">])*>", match =>
+                            {
+                                var tag = Regex.Match(match.Value, @"^<([A-Za-z][A-Za-z0-9._-]*)");
+
+                                if (tag.Success)
+                                {
+                                    CheckElement(tag.Groups[1].Value);
+                                }
+
+                                return "";
+                            });
+                            CheckText(System.Net.WebUtility.HtmlDecode(remaining));
+                        }
+                        else if (IsBuilderCall(child, "AddContent", context.SemanticModel, context.CancellationToken)
+                            || IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken))
+                        {
+                            var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
+
+                            if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
+                                || !constant.HasValue && type?.SpecialType != SpecialType.System_String)
+                            {
+                                context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, fallback, owner.Name, parameter));
+                            }
+                            else
+                            {
+                                CheckText(constant.HasValue ? constant.Value?.ToString() ?? "" : "Text expression");
+                            }
+                        }
+                    }
+
+                    void CheckElement(string name)
+                    {
+                        if (!names.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, fallback, "HTML element '" + name + "'", owner.Name, parameter));
+                        }
+                    }
+
+                    void CheckText(string text)
+                    {
+                        if (!allowText && !string.IsNullOrWhiteSpace(text))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, fallback, "Visible text", owner.Name, parameter));
                         }
                     }
                 }
@@ -215,11 +318,6 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             match => new string(' ', match.Length));
 
         text = Regex.Replace(text, @"(?m)^\s*@using[^\r\n]*", match => new string(' ', match.Length));
-
-        if (text.Contains("@"))
-        {
-            return result;
-        }
 
         var tags = Regex.Matches(text, @"<([A-Z][A-Za-z0-9_.]*)(?=[\s/>])")
             .Cast<Match>().ToArray();
