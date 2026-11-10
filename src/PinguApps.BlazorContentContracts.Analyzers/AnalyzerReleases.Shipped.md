@@ -11,3 +11,4 @@ BCC002 | ContentContracts | Error | Invalid content contract declaration; fix th
 BCC003 | ContentContracts | Error | Conflicting inherited declaration; preserve the inherited contract
 BCC004 | ContentContracts | Warning | Opaque or unresolved markup output requires inspectable content
 BCC005 | ContentContracts | Error | HTML element or visible text violates a restricted fragment contract
+BCC006 | ContentContracts | Warning | Unresolved fragment, dynamic component selection or unsupported manual builder output; use inspectable output
