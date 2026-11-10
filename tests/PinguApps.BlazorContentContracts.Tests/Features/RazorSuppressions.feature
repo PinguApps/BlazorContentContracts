@@ -22,6 +22,7 @@ Feature: Razor suppressions acknowledge one unknown usage
             | <Slot>@* bcc-suppress-next BCC006: reviewed *@ text @Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | BCC005,BCC006,BCC008 |
             | <Slot>@* bcc-suppress-next BCC006: reviewed *@</Slot> | BCC008 |
             | <Slot>@("@* bcc-suppress-next BCC006: literal text *@")@Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | BCC005,BCC006 |
+            | <Slot>@($"@* bcc-suppress-next BCC006: literal text *@")@Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | BCC005,BCC006 |
 
     Scenario: Whitespace attaches the comment across lines
         Given a composed Razor consumer using

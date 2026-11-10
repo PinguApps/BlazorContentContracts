@@ -65,7 +65,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             .Where(call => !InInferenceHelper(call) && IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
-        var literals = root.DescendantNodes().OfType<LiteralExpressionSyntax>()
+        var literals = root.DescendantNodes().Where(node => node is LiteralExpressionSyntax or InterpolatedStringExpressionSyntax)
             .Select(literal => OriginalSpan(literal, source, file.Path)).Where(span => span.HasValue)
             .Select(span => span!.Value).ToArray();
         var suppressions = new RazorSuppressions(source, file.Path, literals, context.CancellationToken);
