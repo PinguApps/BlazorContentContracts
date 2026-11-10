@@ -75,9 +75,9 @@ HTML comments and whitespace are ignored; decoded visible entities count as text
 non-string output, even when text is allowed. String expressions follow text permission.
 Implicit/named slots and typed template bodies receive their parameter's contract.
 All conditional/switch branches and loop bodies are inspected regardless of runtime data.
-Inline fragments and local fragment initializers are expanded at emission sites; arbitrary
+Block-bodied inline fragment lambdas and local fragment initializers are expanded at emission sites; arbitrary
 assignment/alias tracking and wrapper implementation expansion remain later work.
-Non-emitting lambdas, reference captures, keys and events add no output findings.
+Expression-bodied builder lambdas in slot attributes are not inspected by this slice. Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
 executing code. Wrapper implementation and forwarding composition remain later work.
 Future schema changes must retain these identities/defaults or document the required

@@ -34,7 +34,7 @@ location over the original tag name. Comments are masked without shifting offset
 A count/name mismatch uses the start of the Razor source as a fallback diagnostic location.
 This is a deliberately bounded foundation, not a complete Razor parser.
 Implicit and named slots, typed template contexts, conditional/switch branches and loop
-bodies are checked without executing application code. Inline fragments and local fragment
+bodies are checked without executing application code. Block-bodied inline fragments and local fragment
 initializers are inspected when emitted; unused lambdas and event/reference captures do not
 emit content. Allowed components remain terminal boundaries. Wrapper output and fragment
 assignment/alias tracking remain later work. Named slot tags can cause the conservative
