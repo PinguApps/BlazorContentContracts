@@ -120,6 +120,7 @@ activation remain separate release work.
 | BCC006 | Warning | Opaque fragment/method output, runtime component selection or unsupported builder helper; the message explains the uncertainty. Inline inspectable output where possible. |
 | BCC007 | Warning | Malformed package suppression comment; specify `next`, BCC004 or BCC006, and a reason. |
 | BCC008 | Warning | Unused suppression; remove it or move it immediately before the intended usage. |
+| BCC009 | Error | Forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
 
 Unknown output does not hide definite violations in siblings or other branches.
 BCC006 is limited to one warning per restricted slot usage. Explicitly allowed
@@ -185,3 +186,10 @@ fixed output and transparent forwarding. See [metadata schema v1](docs/contract-
 for supported targets, defaults, examples and inheritance rules. BCC002 validates
 declarations and BCC003 rejects conflicting inherited declarations without executing
 application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Compiled output-contract validation and trust remain later work.
+
+Annotated fragment parameters preserve their permissions when forwarded, including typed
+and inherited parameters. The source contract must fit entirely inside the receiving
+contract: derived component families, open/closed generics, HTML names and text are
+compared without executing fragment code. Callers are checked at the source parameter.
+Conflicting redeclarations report BCC003 and retain the base restriction. Opaque
+unannotated forwarding reports BCC006; annotate its source or supply inline content.

@@ -17,6 +17,51 @@ internal sealed class RazorBuildFixture : IDisposable
     private int exitCode;
     private string output = "";
 
+    public void ThenForwarding(string rule, int count)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+
+        Assert.Equal(count, results.Count(result => result.GetProperty("ruleId").GetString() == rule));
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001"
+            || result.GetProperty("ruleId").GetString()!.StartsWith("CS", StringComparison.Ordinal));
+        Assert.All(results.Where(result => result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal)), result =>
+            Assert.True(result.GetProperty("ruleId").GetString() == rule
+                || rule == "BCC003" && result.GetProperty("ruleId").GetString() == "BCC005", output));
+        Assert.Equal(results.Any(result => result.GetProperty("level").GetString() == "error"), exitCode != 0);
+    }
+
+    public void GivenForwarding(string permissions, string usage)
+    {
+        GivenComposition(usage);
+        File.WriteAllText(Path.Combine(directory, "DerivedGood.cs"), "public class DerivedGood : Good\n{\n}\n");
+        File.WriteAllText(Path.Combine(directory, "Row.cs"), "public class Row<T> : Microsoft.AspNetCore.Components.ComponentBase\n{\n}\n");
+        var parts = permissions.Split(" => ", StringSplitOptions.None);
+
+        if (parts.Length == 2)
+        {
+            permissions = parts[0];
+            File.WriteAllText(Path.Combine(directory, "Slot.cs"), "using Microsoft.AspNetCore.Components; using PinguApps.BlazorContentContracts; public class Slot : ComponentBase { [Parameter, AllowedChildren(" + parts[1] + ")] public RenderFragment ChildContent { get; set; } }");
+        }
+
+        var typed = permissions == "typed";
+        var inherited = permissions is "inherited" or "conflict";
+        var declaration = permissions == "opaque" ? "" : "[AllowedChildren(" + (typed || inherited ? "typeof(Good)" : permissions) + ")]";
+        var fragment = typed ? "RenderFragment<int>" : "RenderFragment";
+        var markup = typed ? "<Slot><Template>@ChildContent(1)</Template></Slot>" : "<Slot ChildContent=\"@ChildContent\" />";
+
+        if (inherited)
+        {
+            File.WriteAllText(Path.Combine(directory, "BaseWrapper.cs"), "using Microsoft.AspNetCore.Components; using PinguApps.BlazorContentContracts; public class BaseWrapper : ComponentBase { [Parameter, AllowedChildren(typeof(Good))] public RenderFragment ChildContent { get; set; } }");
+        }
+
+        var property = inherited ? permissions == "conflict"
+            ? "[Parameter, AllowedChildren(typeof(Good), typeof(Bad))] public new RenderFragment ChildContent { get; set; }" : ""
+            : "[Parameter] " + declaration + " public " + fragment + " ChildContent { get; set; }";
+        File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n@using PinguApps.BlazorContentContracts\n"
+            + (inherited ? "@inherits BaseWrapper\n" : "") + markup + "\n@code { " + property + " }");
+    }
+
     public void GivenWrapper(string markup, string usage)
     {
         GivenComposition("<Slot>" + usage + "</Slot>");

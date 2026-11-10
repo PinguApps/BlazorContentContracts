@@ -97,3 +97,9 @@ Constant text expressions are checked without
 executing code. Compiled output/forwarding declarations remain future composition work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.
+
+Forwarded AllowedChildren parameters are checked as permission subsets at restricted
+slots. BCC009 rejects any source component family, HTML name or text permission the
+receiver does not permit. Typed invocation preserves the parameter contract. Base
+parameter contracts remain effective even after conflicting redeclarations. Callers
+are checked at the annotated boundary; opaque unannotated values remain BCC006.

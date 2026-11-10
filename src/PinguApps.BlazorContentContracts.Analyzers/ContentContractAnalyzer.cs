@@ -32,7 +32,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         description: "Use inspectable fragments or supported builder calls to establish the emitted content. This is a compile-time check only.",
         helpLinkUri: "https://github.com/PinguApps/BlazorContentContracts#diagnostics");
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
+    private static readonly DiagnosticDescriptor InvalidForwarding = new(
+        "BCC009", "Incompatible forwarded contract", "Forwarded parameter '{0}' permits output not allowed in '{1}.{2}'",
+        "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidForwarding, InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -132,16 +136,22 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     var outputLocation = fallback;
                     var outputPath = "";
 
-                    if (content == null)
-                    {
-                        ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", value, componentUsage: true);
-                        continue;
-                    }
-
                     var html = contract.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
                     var names = html.Kind == TypedConstantKind.Array && !html.IsNull
                         ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
                     var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
+
+                    if (CheckForwardedContract(value, context.SemanticModel))
+                    {
+                        continue;
+                    }
+
+                    if (content == null)
+                    {
+                        ReportUnknown("the fragment value or method result is opaque; annotate the source parameter with AllowedChildren or supply an inline fragment", value, componentUsage: true);
+                        continue;
+                    }
+
                     var activeWrappers = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
                     Validate(content, context.SemanticModel, new Dictionary<string, FragmentInput>(), "", null);
 
@@ -326,6 +336,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                                 if (forwardedSymbol is IPropertySymbol property && IsFragment(property.Type))
                                 {
+                                    if (CheckForwardedContract(forwarded, model))
+                                    {
+                                        continue;
+                                    }
+
                                     if (inputs.TryGetValue(property.Name, out var input))
                                     {
                                         var bound = input;
@@ -344,6 +359,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                             break;
                                         }
 
+                                        if (CheckForwardedContract(bound.Expression, bound.Model))
+                                        {
+                                            continue;
+                                        }
+
                                         var fragmentBody = FragmentBody(bound.Expression, bound.Model, context.CancellationToken,
                                             new HashSet<ISymbol>(SymbolEqualityComparer.Default));
 
@@ -353,14 +373,14 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         }
                                         else
                                         {
-                                            ReportUnknown("forwarded template '" + property.Name + "' is opaque", child);
+                                            ReportUnknown("forwarded template '" + property.Name + "' is opaque; annotate its source parameter with AllowedChildren or supply an inline fragment", child);
                                         }
                                     }
                                     else if (path.Length == 0 || !property.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == "Microsoft.AspNetCore.Components.ParameterAttribute")
                                         || property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(context.CancellationToken) is PropertyDeclarationSyntax declaration
                                             && (declaration.Initializer != null || declaration.ExpressionBody != null)))
                                     {
-                                        ReportUnknown("the fragment value or its default implementation is opaque", expression);
+                                        ReportUnknown("the fragment value or its default implementation is opaque; annotate the source parameter with AllowedChildren or supply inline content", expression);
                                     }
 
                                     continue;
@@ -390,6 +410,49 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             }
                         }
 
+                    }
+
+                    bool CheckForwardedContract(ExpressionSyntax expression, SemanticModel model)
+                    {
+                        while (expression is ParenthesizedExpressionSyntax or CastExpressionSyntax or InvocationExpressionSyntax)
+                        {
+                            expression = expression switch
+                            {
+                                ParenthesizedExpressionSyntax parentheses => parentheses.Expression,
+                                CastExpressionSyntax cast => cast.Expression,
+                                InvocationExpressionSyntax invocation => invocation.Expression,
+                                _ => expression
+                            };
+                        }
+
+                        if (model.GetSymbolInfo(expression, context.CancellationToken).Symbol is not IPropertySymbol property
+                            || !IsFragment(property.Type))
+                        {
+                            return false;
+                        }
+
+                        var forwarded = Contract(property.ContainingType, property.Name, model.Compilation);
+
+                        if (forwarded == null || forwarded.ConstructorArguments.Length != 1)
+                        {
+                            return false;
+                        }
+
+                        var types = forwarded.ConstructorArguments[0].Values.Select(item => item.Value).OfType<INamedTypeSymbol>();
+                        var elements = forwarded.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
+                        var text = forwarded.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
+                        var incompatible = types.Any(type => !allowed.Any(item => Matches(item, type)))
+                            || text && !allowText
+                            || elements.Kind == TypedConstantKind.Array && !elements.IsNull
+                                && elements.Values.Any(element => !names.Any(name => string.Equals(name, element.Value as string, StringComparison.OrdinalIgnoreCase)));
+
+                        if (incompatible)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(InvalidForwarding, outputLocation,
+                                property.ContainingType.Name + "." + property.Name, owner.Name, parameter));
+                        }
+
+                        return true;
                     }
 
                     void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)
@@ -619,6 +682,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
     {
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
 
+        AttributeData? inherited = null;
+
         for (INamedTypeSymbol? current = type; current != null; current = current.BaseType)
         {
             var attribute = current.GetMembers(parameter).OfType<IPropertySymbol>()
@@ -627,11 +692,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
             if (attribute != null)
             {
-                return attribute;
+                inherited = attribute;
             }
         }
 
-        return null;
+        return inherited;
     }
 
     private static bool InInferenceHelper(SyntaxNode node)

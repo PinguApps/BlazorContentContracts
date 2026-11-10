@@ -14,3 +14,4 @@ BCC005 | ContentContracts | Error | HTML element or visible text violates a rest
 BCC006 | ContentContracts | Warning | Unresolved fragment, dynamic component selection or unsupported manual builder output; use inspectable output
 BCC007 | ContentContracts | Warning | Malformed Razor suppression; specify next usage, supported diagnostic ID and reason
 BCC008 | ContentContracts | Warning | Unused Razor suppression; remove or move the comment
+BCC009 | ContentContracts | Error | Forwarded fragment permissions exceed the receiving contract
