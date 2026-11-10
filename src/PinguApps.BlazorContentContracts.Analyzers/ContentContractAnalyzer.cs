@@ -48,12 +48,17 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         }
 
         var opens = root.DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .Where(call => IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
+            .Where(call => !InInferenceHelper(call) && IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
 
         foreach (var block in root.DescendantNodes().OfType<BlockSyntax>())
         {
+            if (InInferenceHelper(block))
+            {
+                continue;
+            }
+
             INamedTypeSymbol? owner = null;
 
             foreach (var statement in block.Statements.OfType<ExpressionStatementSyntax>())
@@ -77,9 +82,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     && call.ArgumentList.Arguments.Count == 3
                     && context.SemanticModel.GetConstantValue(call.ArgumentList.Arguments[1].Expression, context.CancellationToken).Value is string parameter)
                 {
-                    var property = owner.GetMembers(parameter).OfType<IPropertySymbol>().FirstOrDefault();
-                    var contract = property?.GetAttributes().FirstOrDefault(attribute =>
-                        attribute.AttributeClass?.ToDisplayString() == "PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
+                    var contract = Contract(owner, parameter, context.SemanticModel.Compilation);
 
                     if (contract == null || contract.ConstructorArguments.Length != 1)
                     {
@@ -101,7 +104,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     {
                         var type = ComponentType(child, context.SemanticModel, context.CancellationToken);
 
-                        if (type != null && !allowed.Any(item => SymbolEqualityComparer.Default.Equals(item, type))
+                        if (type != null && !allowed.Any(item => Matches(item, type))
                             && locations.TryGetValue(child.SpanStart, out var location))
                         {
                             context.ReportDiagnostic(Diagnostic.Create(InvalidChild, location, type.Name, owner.Name, parameter));
@@ -112,16 +115,95 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    private static bool Matches(ITypeSymbol allowed, INamedTypeSymbol type)
+    {
+        for (INamedTypeSymbol? current = type; current != null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(allowed, current)
+                || allowed is INamedTypeSymbol { IsUnboundGenericType: true } open
+                && SymbolEqualityComparer.Default.Equals(open.OriginalDefinition, current.OriginalDefinition))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static AttributeData? Contract(INamedTypeSymbol type, string parameter, Compilation compilation)
+    {
+        var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
+
+        for (INamedTypeSymbol? current = type; current != null; current = current.BaseType)
+        {
+            var attribute = current.GetMembers(parameter).OfType<IPropertySymbol>()
+                .SelectMany(property => property.GetAttributes())
+                .FirstOrDefault(candidate => SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attributeType));
+
+            if (attribute != null)
+            {
+                return attribute;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool InInferenceHelper(SyntaxNode node)
+    {
+        return node.Ancestors().OfType<ClassDeclarationSyntax>().Any(type => type.Identifier.ValueText == "TypeInference")
+            && node.Ancestors().OfType<NamespaceDeclarationSyntax>()
+                .Any(space => space.Name.ToString().StartsWith("__Blazor.", StringComparison.Ordinal));
+    }
+
     private static bool IsBuilderCall(InvocationExpressionSyntax call, string name, SemanticModel model, System.Threading.CancellationToken cancellation)
     {
         return model.GetSymbolInfo(call, cancellation).Symbol is IMethodSymbol method
-            && method.Name == name
-            && method.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder";
+            && (method.Name == name
+                && method.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder"
+                || name == "OpenComponent" && InferredType(method, model, cancellation) != null);
     }
 
     private static INamedTypeSymbol? ComponentType(InvocationExpressionSyntax call, SemanticModel model, System.Threading.CancellationToken cancellation)
     {
-        return (model.GetSymbolInfo(call, cancellation).Symbol as IMethodSymbol)?.TypeArguments.FirstOrDefault() as INamedTypeSymbol;
+        var method = model.GetSymbolInfo(call, cancellation).Symbol as IMethodSymbol;
+
+        if (method == null)
+        {
+            return null;
+        }
+
+        return InferredType(method, model, cancellation) ?? method.TypeArguments.FirstOrDefault() as INamedTypeSymbol;
+    }
+
+    private static INamedTypeSymbol? InferredType(IMethodSymbol method, SemanticModel model, System.Threading.CancellationToken cancellation)
+    {
+        if (method.ContainingType.Name != "TypeInference" || !method.ContainingNamespace.ToDisplayString().StartsWith("__Blazor.", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var declaration = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellation);
+
+        if (declaration == null || declaration.SyntaxTree != model.SyntaxTree)
+        {
+            return null;
+        }
+
+        foreach (var call in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (model.GetSymbolInfo(call, cancellation).Symbol is IMethodSymbol open
+                && open.Name == "OpenComponent"
+                && open.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder"
+                && open.TypeArguments.FirstOrDefault() is INamedTypeSymbol type)
+            {
+                return type.ConstructedFrom.Construct(type.TypeArguments.Select(argument =>
+                    argument is ITypeParameterSymbol parameter && parameter.TypeParameterKind == TypeParameterKind.Method
+                        ? method.TypeArguments[parameter.Ordinal] : argument).ToArray());
+            }
+        }
+
+        return null;
     }
 
     private static Dictionary<int, Location> MapTags(SourceText source, string path, InvocationExpressionSyntax[] opens,
@@ -131,6 +213,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         // This foundation slice deliberately accepts static markup only. Preserve offsets while hiding comments.
         var text = Regex.Replace(source.ToString(), @"@\*[\s\S]*?\*@|<!--[\s\S]*?-->",
             match => new string(' ', match.Length));
+
+        text = Regex.Replace(text, @"(?m)^\s*@using[^\r\n]*", match => new string(' ', match.Length));
 
         if (text.Contains("@"))
         {
@@ -151,7 +235,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             var type = ComponentType(opens[index], model, cancellation);
             var tag = tags[index].Groups[1];
 
-            if (type == null || (tag.Value != type.Name && tag.Value != type.ToDisplayString()))
+            if (type == null || (tag.Value != type.Name && tag.Value != type.ContainingNamespace + "." + type.Name))
             {
                 return new Dictionary<int, Location>();
             }

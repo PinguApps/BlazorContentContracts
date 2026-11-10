@@ -24,6 +24,7 @@ if (string.IsNullOrEmpty(dotnet))
 Require(!string.IsNullOrEmpty(dotnet), "Install the SDK selected by global.json first.");
 dotnet = Path.GetFullPath(dotnet!);
 
+var consumerFramework = "net11.0";
 var processPath = Environment.GetEnvironmentVariable("PATH");
 var persistentPaths = PersistentPaths();
 
@@ -38,12 +39,15 @@ try
     Run(root, "pack", "-c", "Release", "--no-build", "-o", output);
 
     Run(root, "test", "-c", "Release", "--no-build");
+    consumerFramework = "net10.0";
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RealRazorBuildDiagnostics");
+    consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
 
     foreach (var (package, expected) in new[]
     {
-        (prefix, $"lib/net10.0/{prefix}.dll"),
+        (prefix, $"lib/netstandard2.0/{prefix}.dll"),
         (prefix + ".Analyzers", $"analyzers/dotnet/cs/{prefix}.Analyzers.dll")
     })
     {
@@ -118,7 +122,7 @@ try
 
         File.WriteAllText(Path.Combine(consumer, "Consumer.csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+              <PropertyGroup><TargetFramework>net11.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
               <ItemGroup>
                 <PackageReference Include="{{prefix}}" Version="1.0.0" />
                 <PackageReference Include="{{prefix}}.Analyzers" Version="1.0.0" />
@@ -135,7 +139,7 @@ try
         Require(File.ReadAllText(Path.Combine(consumer, "analyzers.txt")).Contains($"{prefix}.Analyzers.dll", StringComparison.Ordinal),
             "Consumer did not discover the packaged analyzer.");
 
-        using var deps = JsonDocument.Parse(File.ReadAllText(Path.Combine(consumer, "bin", "Release", "net10.0", "Consumer.deps.json")));
+        using var deps = JsonDocument.Parse(File.ReadAllText(Path.Combine(consumer, "bin", "Release", "net11.0", "Consumer.deps.json")));
         var runtime = deps.RootElement.GetProperty("targets").EnumerateObject()
             .SelectMany(target => target.Value.EnumerateObject())
             .Where(entry => entry.Value.TryGetProperty("runtime", out _))
@@ -176,6 +180,9 @@ void Run(string cwd, params string[] arguments)
         start.ArgumentList.Add(argument);
     }
 
+    start.Environment["BCC_CONSUMER_FRAMEWORK"] = consumerFramework;
+    start.Environment["BCC_CONSUMER_DOTNET"] = consumerFramework == "net10.0"
+        ? Environment.GetEnvironmentVariable("BCC_NET10_DOTNET") ?? dotnet! : dotnet!;
     start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
     start.Environment["DOTNET_HOST_PATH"] = dotnet!;
     start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";

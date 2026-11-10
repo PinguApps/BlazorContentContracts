@@ -66,9 +66,6 @@ public class Panel : ComponentBase
 }
 ```
 
-This slice validates declarations and preserves metadata. Checking implementation
-truth, generic/derived child matching, recursive HTML/text validation and forwarding
-composition are later work. The existing BCC001 proof still checks only static,
-direct, exact component types; these annotations do not imply those later checks run.
+Declarations and static direct component usages are validated. BCC001 matches exact and derived types, open/closed generic families and inherited parameter contracts. Allowed components are terminal boundaries. Implementation truth, recursive HTML/text validation and forwarding composition remain later work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.

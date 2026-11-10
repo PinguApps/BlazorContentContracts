@@ -10,14 +10,14 @@ Install the SDK selected by `global.json`, then run `dotnet run --file scripts/v
 This builds the solution and packs both packages into
 `artifacts/packages`, then runs the smoke test and real Razor SDK build scenarios against those packages.
 It checks package layouts and release tracking, and builds/runs an
-independent .NET 10 consumer restored from those exact packages with an isolated
+independent .NET 11 consumer restored from those exact packages with an isolated
 package cache. The consumer checks analyzer discovery and runtime dependency separation.
-CI runs the same command and retains the NuGet artifacts without publishing them.
+Real Razor scenarios also run with SDK 10.0.403 targeting .NET 10. Install both SDKs; when they have separate roots, set `BCC_NET10_DOTNET` to the absolute .NET 10 executable path. CI runs the same command and retains the NuGet artifacts without publishing them.
 
-The annotation package has no Roslyn dependency. The analyzer package carries its
+Both packages target `netstandard2.0`; repository tests and samples target .NET 11. The annotation package has no Roslyn dependency. The analyzer package carries its
 assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
 assets. Automatic transitive activation remains later work; Razor diagnostics require explicit additional-source setup.
-BCC001 checks exact direct component types in the qualified static slice. Add future rules directly to
+BCC001 checks direct component symbols, base classes, open and closed generic families, and inherited slot contracts in the qualified static slice. Add future rules directly to
 `AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
 retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.
 The verification command disables .NET's automatic global-tools PATH integration
@@ -35,9 +35,9 @@ and checks saved Windows user/machine PATH values before and after execution.
 
 These are implementation and qualification targets agreed in PIN-1247, not claims of working diagnostics today.
 
-- Repository build SDK: .NET SDK `10.0.403`, with later patches in the `10.0.4xx` feature band permitted by `latestPatch`; previews are disabled.
-- Consumer framework and Razor: .NET 10 (`net10.0`), ASP.NET Core/Razor 10 using the Razor tooling bundled with the selected SDK. .NET 8, .NET 9 and preview SDKs are outside the initial support scope.
-- Build analyzer host: Roslyn `5.9` supplied by SDK `10.0.403`. The analyzer assembly targets `netstandard2.0`, following the existing PinguApps analyzer convention; that assembly target does not promise support for older compiler hosts or consumer frameworks. Keep compiler dependencies separate from the runtime annotation assembly.
+- Repository build SDK: .NET SDK `11.0.100`, with later patches in the `11.0.1xx` feature band permitted by `latestPatch`; previews are disabled.
+- Consumer framework and Razor: .NET 11 (`net11.0`), ASP.NET Core/Razor 11 using the Razor tooling bundled with the selected SDK. .NET 10 consumers on SDK `10.0.403` remain supported and are verified against the same packed artifacts. .NET 8, .NET 9 and preview SDKs are outside this scope.
+- Build analyzer host: Roslyn `5.12` supplied by SDK `11.0.100` (the analyzer retains Roslyn `5.9` dependencies for .NET 10 host compatibility). The analyzer assembly targets `netstandard2.0`, following the existing PinguApps analyzer convention; that assembly target does not promise support for older compiler hosts or consumer frameworks. Keep compiler dependencies separate from the runtime annotation assembly.
 - Live editor targets: Visual Studio with .NET 10 Razor tooling, and VS Code with the C# extension/C# Dev Kit and .NET 10 tooling. Rider is outside the initial live-editor scope.
 - Build diagnostics and original Razor source mapping must be proven in PIN-1249. Editor diagnostics and suppression actions must be proven separately in PIN-1270, recording exact editor, extension, Razor and compiler versions and any limitations. CLI build support does not establish live-editor support.
 
@@ -91,8 +91,8 @@ confirms hosted access and detection of central NuGet versions, `global.json`
 Default manager discovery remains enabled for future toolchain files.
 
 Local rules allow newer SDK and compiler versions to appear in the dashboard,
-including new SDK feature bands and .NET major versions such as .NET 11.
-Updates outside the qualified SDK `10.0.4xx` band (including bundled Razor tooling)
+including newer SDK feature bands and .NET major versions.
+Updates outside the qualified SDK `11.0.1xx` band (including bundled Razor tooling)
 or Roslyn `5.9.x` baseline require Dependency Dashboard approval before Renovate
 creates a PR; patch updates within those baselines follow the shared policy.
 Approve the dashboard entry to request an upgrade PR, then qualify the
