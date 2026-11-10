@@ -9,6 +9,18 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Then("the forwarding build reports {string} exactly {int} times")]
+    public void ThenForwarding(string rule, int count)
+    {
+        fixture.ThenForwarding(rule, count);
+    }
+
+    [Given("a forwarding parameter allowing {string} with usage {string}")]
+    public void GivenForwarding(string permissions, string usage)
+    {
+        fixture.GivenForwarding(permissions, usage);
+    }
+
     [Given("a local wrapper with output {string} and usage {string}")]
     public void GivenWrapper(string output, string usage)
     {
