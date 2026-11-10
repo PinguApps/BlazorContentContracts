@@ -74,3 +74,30 @@ Feature: Real Razor build diagnostics
             | span | false | &amp; | BCC005 | 1 |
             | span | true | <span title="a > b" /> | BCC001 | 0 |
             | span | true | @((Microsoft.AspNetCore.Components.MarkupString)System.DateTime.Now.ToString()) | BCC004 | 1 |
+
+    Scenario Outline: Composition checks every emitted branch and the correct slot
+        Given a composed Razor consumer using '<usage>'
+        When the real Razor SDK builds the consumer
+        Then the markup build reports "BCC001" exactly <count> times
+
+        Examples:
+            | usage | count |
+            | <Slot><ChildContent><Good /></ChildContent><Header><Bad /></Header><Template Context="item"><Good /></Template></Slot> | 0 |
+            | <Slot><ChildContent><Bad /></ChildContent><Header><Good /></Header><Template Context="item"><Bad /></Template></Slot> | 3 |
+            | <Slot>@if (System.DateTime.Now.Ticks > 0) { <Bad /> } else { <Bad /> }</Slot> | 2 |
+            | <Slot>@switch (System.DateTime.Now.Day) { case 1: <Bad /> break; default: <Bad /> break; }</Slot> | 2 |
+            | <Slot>@foreach (var item in new int[0]) { <Bad /> }</Slot> | 1 |
+            | <Slot>@for (var i = 0; i < 0; i++) { <Bad /> }</Slot> | 1 |
+            | <Slot><Template Context="item">@if (item == 0) { <Bad /> } else { <Good /> }</Template></Slot> | 1 |
+            | <Slot><Good><Bad /></Good></Slot> | 0 |
+            | <Slot>@((RenderFragment)(builder => { builder.OpenComponent<Bad>(0); builder.CloseComponent(); }))</Slot> | 1 |
+            | <Slot><Good @key="1" />@* ignored *@</Slot> | 0 |
+            | <Slot>@{ RenderFragment fragment = @<Bad />; }@fragment</Slot> | 1 |
+            | <Slot>@{ RenderFragment<int> fragment = item => @<Bad />; }@fragment(1)</Slot> | 1 |
+            | <Slot>@{ RenderFragment fragment = @<Bad />; }<Good /></Slot> | 0 |
+            | <Slot>@while (System.DateTime.Now.Ticks < 0) { <Bad /> }</Slot> | 1 |
+            | <Slot><Template Context="item">@{ RenderFragment fragment = @<Bad />; }@fragment</Template></Slot> | 1 |
+            | <Slot><Good @ref="component" /></Slot>@code { private Good component; } | 0 |
+            | <Slot><Good /><Good /></Slot> | 0 |
+            | <Slot><Good Activated="@(() => { var ignored = 1; })" /></Slot> | 0 |
+            | <Slot ChildContent="@((RenderFragment)(builder => { builder.OpenComponent<Bad>(0); builder.CloseComponent(); }))" /> | 1 |

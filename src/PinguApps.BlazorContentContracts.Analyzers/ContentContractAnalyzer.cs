@@ -88,7 +88,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 {
                     owner = null;
                 }
-                else if (owner != null && IsBuilderCall(call, "AddAttribute", context.SemanticModel, context.CancellationToken)
+                else if (owner != null && (IsBuilderCall(call, "AddAttribute", context.SemanticModel, context.CancellationToken)
+                    || IsBuilderCall(call, "AddComponentParameter", context.SemanticModel, context.CancellationToken))
                     && call.ArgumentList.Arguments.Count == 3
                     && context.SemanticModel.GetConstantValue(call.ArgumentList.Arguments[1].Expression, context.CancellationToken).Value is string parameter)
                 {
@@ -101,7 +102,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     var allowed = contract.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>().ToArray();
                     var lambda = call.ArgumentList.Arguments[2].Expression.DescendantNodesAndSelf()
-                        .OfType<LambdaExpressionSyntax>().FirstOrDefault();
+                        .OfType<LambdaExpressionSyntax>().FirstOrDefault(candidate => candidate.Body is BlockSyntax);
 
                     if (lambda?.Body is not BlockSyntax content)
                     {
@@ -116,8 +117,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
                     var componentDepth = 0;
 
-                    foreach (var child in content.Statements.OfType<ExpressionStatementSyntax>()
-                        .Select(item => item.Expression).OfType<InvocationExpressionSyntax>())
+                    foreach (var child in ContentCalls(content, context.SemanticModel, context.CancellationToken, new HashSet<SyntaxNode>()))
                     {
                         if (IsBuilderCall(child, "CloseComponent", context.SemanticModel, context.CancellationToken))
                         {
@@ -216,6 +216,86 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 }
             }
         }
+    }
+
+    private static IEnumerable<InvocationExpressionSyntax> ContentCalls(SyntaxNode node, SemanticModel model,
+        System.Threading.CancellationToken cancellation, HashSet<SyntaxNode> active)
+    {
+        cancellation.ThrowIfCancellationRequested();
+
+        if (!active.Add(node))
+        {
+            yield break;
+        }
+
+        foreach (var child in node.ChildNodes())
+        {
+            if (child is LambdaExpressionSyntax or LocalFunctionStatementSyntax)
+            {
+                continue;
+            }
+
+            if (child is InvocationExpressionSyntax call)
+            {
+                if (IsBuilderCall(call, "AddContent", model, cancellation) && call.ArgumentList.Arguments.Count >= 2)
+                {
+                    var expression = call.ArgumentList.Arguments[1].Expression;
+                    var body = FragmentBody(expression, model, cancellation, new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+
+                    if (body != null)
+                    {
+                        foreach (var emitted in ContentCalls(body, model, cancellation, active))
+                        {
+                            yield return emitted;
+                        }
+
+                        continue;
+                    }
+                }
+
+                yield return call;
+                continue;
+            }
+
+            foreach (var emitted in ContentCalls(child, model, cancellation, active))
+            {
+                yield return emitted;
+            }
+        }
+
+        active.Remove(node);
+    }
+
+    private static BlockSyntax? FragmentBody(ExpressionSyntax expression, SemanticModel model,
+        System.Threading.CancellationToken cancellation, HashSet<ISymbol> active)
+    {
+        switch (expression)
+        {
+            case ParenthesizedExpressionSyntax parentheses:
+                return FragmentBody(parentheses.Expression, model, cancellation, active);
+            case CastExpressionSyntax cast:
+                return FragmentBody(cast.Expression, model, cancellation, active);
+            case LambdaExpressionSyntax { Body: BlockSyntax body }:
+                return body;
+            case LambdaExpressionSyntax { Body: ExpressionSyntax result }:
+                return FragmentBody(result, model, cancellation, active);
+            case InvocationExpressionSyntax invocation:
+                return FragmentBody(invocation.Expression, model, cancellation, active);
+        }
+
+        var symbol = model.GetSymbolInfo(expression, cancellation).Symbol;
+
+        if (symbol is not ILocalSymbol local
+            || local.Type is not INamedTypeSymbol fragmentType
+            || fragmentType.ContainingNamespace.ToDisplayString() != "Microsoft.AspNetCore.Components"
+            || fragmentType.Name != "RenderFragment"
+            || !active.Add(symbol))
+        {
+            return null;
+        }
+
+        var declaration = symbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellation) as VariableDeclaratorSyntax;
+        return declaration?.Initializer == null ? null : FragmentBody(declaration.Initializer.Value, model, cancellation, active);
     }
 
     private static bool Matches(ITypeSymbol allowed, INamedTypeSymbol type)

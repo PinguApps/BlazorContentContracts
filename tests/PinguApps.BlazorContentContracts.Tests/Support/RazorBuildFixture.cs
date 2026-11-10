@@ -115,6 +115,37 @@ internal sealed class RazorBuildFixture : IDisposable
             """);
     }
 
+    public void GivenComposition(string usage)
+    {
+        GivenConsumer("valid");
+        File.WriteAllText(Path.Combine(directory, "Usage.razor"), "@using Microsoft.AspNetCore.Components\n" + usage.Replace("@code", "\n@code", StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(directory, "Slot.cs"), """
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public class Slot : ComponentBase
+            {
+                [Parameter, AllowedChildren(typeof(Good))]
+                public RenderFragment ChildContent { get; set; }
+
+                [Parameter, AllowedChildren(typeof(Bad))]
+                public RenderFragment Header { get; set; }
+
+                [Parameter, AllowedChildren(typeof(Good))]
+                public RenderFragment<int> Template { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Good.cs"), """
+            using Microsoft.AspNetCore.Components;
+
+            public class Good : ComponentBase
+            {
+                [Parameter] public RenderFragment ChildContent { get; set; }
+                [Parameter] public EventCallback Activated { get; set; }
+            }
+            """);
+    }
+
     public void ThenMarkupDiagnostics(string rule, int count)
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
@@ -159,6 +190,7 @@ internal sealed class RazorBuildFixture : IDisposable
             {
                 [Parameter] public T Value { get; set; }
                 [Parameter] public RenderFragment ChildContent { get; set; }
+                [Parameter] public EventCallback Activated { get; set; }
             }
             """);
         File.WriteAllText(Path.Combine(directory, "Derived.cs"), """
@@ -236,6 +268,7 @@ internal sealed class RazorBuildFixture : IDisposable
         process.WaitForExit();
         output = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
         exitCode = process.ExitCode;
+        Assert.True(File.Exists(Path.Combine(directory, "diagnostics.sarif")), output);
     }
 
     public void ThenDiagnostics(string expected)

@@ -61,4 +61,10 @@ public sealed class RazorBuildSteps : IDisposable
     {
         fixture.Dispose();
     }
+
+    [Given("a composed Razor consumer using {string}")]
+    public void GivenComposition(string usage)
+    {
+        fixture.GivenComposition(usage);
+    }
 }
