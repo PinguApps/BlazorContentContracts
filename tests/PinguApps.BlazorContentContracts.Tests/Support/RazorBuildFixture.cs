@@ -268,6 +268,7 @@ internal sealed class RazorBuildFixture : IDisposable
         process.WaitForExit();
         output = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
         exitCode = process.ExitCode;
+        Assert.True(File.Exists(Path.Combine(directory, "diagnostics.sarif")), output);
     }
 
     public void ThenDiagnostics(string expected)
