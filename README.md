@@ -17,7 +17,7 @@ Real Razor scenarios also run with SDK 10.0.403 targeting .NET 10. Install both 
 Both packages target `netstandard2.0`; repository tests and samples target .NET 11. The annotation package has no Roslyn dependency. The analyzer package carries its
 assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
 assets. Automatic transitive activation remains later work; Razor diagnostics require explicit additional-source setup.
-BCC001 checks direct component symbols, base classes, open and closed generic families, and inherited slot contracts in the qualified static slice. Add future rules directly to
+BCC001 checks direct component symbols, base classes, open and closed generic families, and inherited slot contracts in the qualified static slice. HTML containers and their descendants are checked independently of text permission; BCC005 rejects forbidden HTML/text and BCC004 warns for opaque markup. Add future rules directly to
 `AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
 retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.
 The verification command disables .NET's automatic global-tools PATH integration

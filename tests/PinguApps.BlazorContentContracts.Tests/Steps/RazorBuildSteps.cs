@@ -45,6 +45,18 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.ThenFamilyDiagnostics(rule, count);
     }
 
+    [Given("a markup contract allowing {string} with text {string} and usage {string}")]
+    public void GivenMarkup(string html, string text, string usage)
+    {
+        fixture.GivenMarkup(html, text, usage);
+    }
+
+    [Then("the markup build reports {string} exactly {int} times")]
+    public void ThenMarkupDiagnostics(string rule, int count)
+    {
+        fixture.ThenMarkupDiagnostics(rule, count);
+    }
+
     public void Dispose()
     {
         fixture.Dispose();

@@ -98,6 +98,34 @@ internal sealed class RazorBuildFixture : IDisposable
             """);
     }
 
+    public void GivenMarkup(string html, string text, string usage)
+    {
+        GivenConsumer("valid");
+        content = "<Slot>" + usage + "</Slot>";
+        File.WriteAllText(Path.Combine(directory, "Usage.razor"), content);
+        File.WriteAllText(Path.Combine(directory, "Slot.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public class Slot : ComponentBase
+            {
+                [Parameter, AllowedChildren(HtmlElements = new[] { "{{html}}" }, AllowText = {{text}})]
+                public RenderFragment ChildContent { get; set; }
+            }
+            """);
+    }
+
+    public void ThenMarkupDiagnostics(string rule, int count)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var diagnostics = results.Where(result => result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(count, diagnostics.Length);
+        Assert.All(diagnostics, result => Assert.Equal(rule, result.GetProperty("ruleId").GetString()));
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+        Assert.True((rule == "BCC004" || count == 0) == (exitCode == 0), output);
+    }
+
     public void GivenFamily(string allowance, string usage, string inheritance)
     {
         GivenConsumer("valid");
