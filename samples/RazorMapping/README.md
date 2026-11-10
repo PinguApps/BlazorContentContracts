@@ -39,8 +39,9 @@ Automatic transitive activation and automatic source inclusion remain later work
 
 ## Support evidence
 
-Build qualification: .NET 10, SDK 11.0.100 / bundled Razor and Roslyn 5.9.
-The regression consumers copy `global.json` and use the real SDK generator and
+Build qualification: .NET 11, SDK 11.0.100 / bundled Razor and Roslyn 5.12,
+plus .NET 10 consumers using SDK 10.0.403 / bundled Razor and Roslyn 5.9.
+The regression consumers generate a per-framework `global.json` and use the real SDK generator and
 compiler; `scripts/verify.cs` restores the just-packed nupkg files, not a published
 feed or a shared package cache. No mocked Razor syntax trees establish this proof.
 
