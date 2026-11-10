@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -65,10 +66,20 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             .Where(call => !InInferenceHelper(call) && IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
-        var literals = root.DescendantNodes().Where(node => node is LiteralExpressionSyntax or InterpolatedStringExpressionSyntax)
-            .Select(literal => OriginalSpan(literal, source, file.Path)).Where(span => span.HasValue)
+        // SDK 11 emits @code members in a separate partial declaration tree.
+        var sourceRoots = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .SelectMany(declaration => context.SemanticModel.GetDeclaredSymbol(declaration, context.CancellationToken)?.DeclaringSyntaxReferences
+                ?? ImmutableArray<SyntaxReference>.Empty)
+            .Select(reference => reference.SyntaxTree).Append(tree).Distinct()
+            .Select(candidate => candidate.GetRoot(context.CancellationToken)).ToArray();
+        var excludedSpans = sourceRoots.SelectMany(candidate => candidate.DescendantNodes())
+            .Where(node => node is LiteralExpressionSyntax or InterpolatedStringExpressionSyntax)
+            .Select(literal => OriginalSpan(literal.GetLocation(), source, file.Path))
+            .Concat(sourceRoots.SelectMany(candidate => candidate.DescendantTrivia())
+                .Where(trivia => trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia))
+                .Select(trivia => OriginalSpan(trivia.GetLocation(), source, file.Path))).Where(span => span.HasValue)
             .Select(span => span!.Value).ToArray();
-        var suppressions = new RazorSuppressions(source, file.Path, literals, context.CancellationToken);
+        var suppressions = new RazorSuppressions(source, file.Path, excludedSpans, context.CancellationToken);
 
         foreach (var block in root.DescendantNodes().OfType<BlockSyntax>())
         {
@@ -279,7 +290,12 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             return componentLocation;
                         }
 
-                        var mapped = OriginalSpan(usage, source, file.Path);
+                        var emissionValue = usage.AncestorsAndSelf().OfType<ExpressionSyntax>().FirstOrDefault(candidate =>
+                            candidate.Parent is ArgumentSyntax argument && argument.Parent?.Parent is InvocationExpressionSyntax emission
+                            && emission.ArgumentList.Arguments.Count >= 2 && emission.ArgumentList.Arguments[1].Expression == candidate
+                            && IsBuilderCall(emission, "AddContent", context.SemanticModel, context.CancellationToken));
+                        var mapped = OriginalSpan((emissionValue ?? usage).GetLocation(), source, file.Path)
+                            ?? OriginalSpan(usage.GetLocation(), source, file.Path);
 
                         if (mapped.HasValue)
                         {
@@ -311,9 +327,9 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         suppressions.Report(context.ReportDiagnostic);
     }
 
-    private static TextSpan? OriginalSpan(SyntaxNode node, SourceText source, string path)
+    private static TextSpan? OriginalSpan(Location location, SourceText source, string path)
     {
-        var mapped = node.GetLocation().GetMappedLineSpan();
+        var mapped = location.GetMappedLineSpan();
 
         if (!mapped.IsValid || !string.Equals(mapped.Path, path, StringComparison.OrdinalIgnoreCase)
             || mapped.StartLinePosition.Line >= source.Lines.Count || mapped.EndLinePosition.Line >= source.Lines.Count)

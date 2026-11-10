@@ -19,7 +19,7 @@ internal sealed class RazorSuppressions
 
     private readonly List<RazorSuppression> entries = new();
 
-    internal RazorSuppressions(SourceText source, string path, IEnumerable<TextSpan> literals, System.Threading.CancellationToken cancellation)
+    internal RazorSuppressions(SourceText source, string path, IEnumerable<TextSpan> excludedSpans, System.Threading.CancellationToken cancellation)
     {
         var text = source.ToString();
 
@@ -27,7 +27,7 @@ internal sealed class RazorSuppressions
         {
             cancellation.ThrowIfCancellationRequested();
 
-            if (!comment.Value.StartsWith("@*", StringComparison.Ordinal) || literals.Any(span => span.Contains(comment.Index)))
+            if (!comment.Value.StartsWith("@*", StringComparison.Ordinal) || excludedSpans.Any(span => span.Contains(comment.Index)))
             {
                 continue;
             }
