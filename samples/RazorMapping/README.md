@@ -3,13 +3,13 @@
 Run `dotnet run --file scripts/verify.cs` from the repository root first. This
 packs the exact local artifacts and runs Gherkin scenarios in independent Razor
 projects, using isolated NuGet caches. Invalid and commented invalid usage fail
-with one BCC001 error at the original `Bad` name (line 2, columns 6–9 for the
+with one BCC005 error at the original `Bad` name (line 2, columns 6–9 for the
 plain invalid case). Valid and empty slots pass. SARIF verifies both endpoints.
 The existing package-layout and runtime-dependency checks still run.
 
 For a sample you can inspect, restore `samples/RazorMapping/RazorMapping.csproj`
 with `--source artifacts/packages --packages artifacts/sample-packages`, then
-build it with `--no-restore`. It intentionally fails with BCC001. Replace `Bad`
+build it with `--no-restore`. It intentionally fails with BCC005. Replace `Bad`
 with `Good`, or replace the usage with `<Slot />`, to see successful builds.
 Use a shell with `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=0` for these commands.
 
@@ -18,7 +18,7 @@ Use a shell with `DOTNET_ADD_GLOBAL_TOOLS_TO_PATH=0` for these commands.
 The analyzer opts into generated code and resolves Razor-generated
 `RenderTreeBuilder.OpenComponent<T>` and `AddAttribute` calls by compiler symbol.
 A restricted fragment parameter uses `[AllowedChildren(typeof(Good))]`.
-BCC001 is an error for a definite direct child of another component type.
+BCC005 is an error for forbidden output, including output expanded from local wrappers.
 The current slice matches exact/base types, open and closed generic families, inherited contracts, imported and qualified tags, and inferred generic component helpers.
 
 Razor's generated C# supplies a `#pragma checksum` identifying the original file,

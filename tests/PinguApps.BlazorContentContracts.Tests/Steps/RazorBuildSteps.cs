@@ -9,6 +9,18 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Given("a local wrapper with output {string} and usage {string}")]
+    public void GivenWrapper(string output, string usage)
+    {
+        fixture.GivenWrapper(output, usage);
+    }
+
+    [Then("the wrapper violation names its path at the consumer")]
+    public void ThenWrapperPath()
+    {
+        fixture.ThenWrapperPath();
+    }
+
     [Given("a Razor consumer with {string} content")]
     public void GivenConsumer(string kind)
     {

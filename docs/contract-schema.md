@@ -66,7 +66,7 @@ public class Panel : ComponentBase
 }
 ```
 
-Declarations and static direct component usages are validated. BCC001 matches exact and derived types, open/closed generic families and inherited parameter contracts. Allowed components are terminal boundaries. HTML containers are checked recursively within each static slot, including HTML-only
+Declarations and local output are validated. Allowed components match exact and derived types and open/closed generic families; inherited parameter contracts remain in force. Allowed components are terminal boundaries. Forbidden HTML/text output reports BCC005; unavailable, unsupported or recursive wrapper output reports BCC006. HTML containers are checked recursively within each static slot, including HTML-only
 contracts. HTML, custom elements and SVG local names all use ordinal case-insensitive
 matching (for example `linearGradient` matches `lineargradient`); names with namespace
 prefixes are unsupported. Text permission applies inside containers too. Razor comments,
@@ -83,9 +83,17 @@ they imply no runtime enforcement.
 Implicit/named slots and typed template bodies receive their parameter's contract.
 All conditional/switch branches and loop bodies are inspected regardless of runtime data.
 Block-bodied inline fragment lambdas and local fragment initializers are expanded at emission sites; arbitrary
-assignment/alias tracking and wrapper implementation expansion remain later work.
+assignment/alias tracking remains later work. Inspectable local component render methods
+are expanded recursively, binding every emitted fragment parameter to its consumer input.
+Unused templates and templates passed beneath an allowed terminal component do not
+contribute local output. All possible output branches are checked. Proven-empty local
+components are accepted; unavailable or unsupported implementations produce BCC006,
+including opaque fragment factories. Constructors and lifecycle methods are never executed.
+Wrapper findings point to the consumer usage and include the wrapper/template path.
+Recursive or excessively deep wrapper expansion conservatively reports BCC006;
+specialised limit diagnostics remain future work.
 Expression-bodied builder lambdas in slot attributes are not inspected by this slice. Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
-executing code. Wrapper implementation and forwarding composition remain later work.
+executing code. Compiled output/forwarding declarations remain future composition work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.

@@ -129,6 +129,9 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         new TextSpan(0, 1), source.Lines.GetLinePositionSpan(new TextSpan(0, 1)));
                     var reportedUnknown = false;
 
+                    var outputLocation = fallback;
+                    var outputPath = "";
+
                     if (content == null)
                     {
                         ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", value, componentUsage: true);
@@ -139,132 +142,254 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     var names = html.Kind == TypedConstantKind.Array && !html.IsNull
                         ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
                     var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
-                    var componentDepth = 0;
+                    var activeWrappers = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+                    Validate(content, context.SemanticModel, new Dictionary<string, FragmentInput>(), "", null);
 
-                    foreach (var child in ContentCalls(content, context.SemanticModel, context.CancellationToken, new HashSet<SyntaxNode>()))
+                    void Validate(BlockSyntax body, SemanticModel model, Dictionary<string, FragmentInput> inputs, string path, Location? usage)
                     {
-                        if (IsBuilderCall(child, "CloseComponent", context.SemanticModel, context.CancellationToken))
-                        {
-                            componentDepth--;
-                            continue;
-                        }
+                        var componentDepth = 0;
+                        var calls = ContentCalls(body, model, context.CancellationToken, new HashSet<SyntaxNode>()).ToArray();
 
-                        if (IsBuilderCall(child, "OpenComponent", context.SemanticModel, context.CancellationToken))
+                        foreach (var child in calls)
                         {
-                            var nested = componentDepth != 0;
+                            outputLocation = usage ?? fallback;
+                            outputPath = path;
 
-                            if (context.SemanticModel.GetSymbolInfo(child, context.CancellationToken).Symbol is IMethodSymbol opening
-                                && opening.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
+                            if (IsBuilderCall(child, "CloseComponent", model, context.CancellationToken))
                             {
-                                componentDepth++;
+                                componentDepth--;
+                                continue;
                             }
 
-                            if (nested)
+                            if (IsBuilderCall(child, "OpenComponent", model, context.CancellationToken))
+                            {
+                                var nested = componentDepth != 0;
+
+                                if (model.GetSymbolInfo(child, context.CancellationToken).Symbol is IMethodSymbol opening
+                                    && opening.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
+                                {
+                                    componentDepth++;
+                                }
+
+                                if (nested)
+                                {
+                                    continue;
+                                }
+
+                                var type = ComponentType(child, model, context.CancellationToken);
+
+                                if (type != null && allowed.Any(item => Matches(item, type)))
+                                {
+                                    continue;
+                                }
+
+                                if (SymbolEqualityComparer.Default.Equals(type,
+                                    model.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.DynamicComponent")))
+                                {
+                                    ReportUnknown("DynamicComponent selects its rendered component at runtime; use a statically selected component", child);
+                                }
+                                else if (type == null)
+                                {
+                                    ReportUnknown("the builder selects a component type dynamically; use OpenComponent<T>", child);
+                                }
+                                else
+                                {
+                                    var consumer = usage ?? (child.SyntaxTree == tree && locations.TryGetValue(child.SpanStart, out var mapped) ? mapped : fallback);
+                                    var nextPath = path.Length == 0 ? type.Name : path + " -> " + type.Name;
+                                    var render = RenderBody(type, model.Compilation, context.CancellationToken, out var empty);
+
+                                    if (empty)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (render == null || activeWrappers.Count >= 64 || !activeWrappers.Add(type.OriginalDefinition))
+                                    {
+                                        outputLocation = consumer;
+                                        outputPath = nextPath;
+                                        ReportUnknown("wrapper output is unavailable, unsupported or recursive", child);
+                                        continue;
+                                    }
+
+                                    var arguments = new Dictionary<string, FragmentInput>();
+
+                                    if (model.GetSymbolInfo(child, context.CancellationToken).Symbol is IMethodSymbol helper
+                                        && InferredType(helper, model, context.CancellationToken) != null
+                                        && helper.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) is MethodDeclarationSyntax declaration)
+                                    {
+                                        foreach (var attribute in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+                                        {
+                                            if ((IsBuilderCall(attribute, "AddAttribute", model, context.CancellationToken)
+                                                || IsBuilderCall(attribute, "AddComponentParameter", model, context.CancellationToken))
+                                                && attribute.ArgumentList.Arguments.Count == 3
+                                                && model.GetConstantValue(attribute.ArgumentList.Arguments[1].Expression, context.CancellationToken).Value is string inputName
+                                                && model.GetSymbolInfo(attribute.ArgumentList.Arguments[2].Expression, context.CancellationToken).Symbol is IParameterSymbol helperParameter
+                                                && helperParameter.Ordinal < child.ArgumentList.Arguments.Count)
+                                            {
+                                                arguments[inputName] = new FragmentInput(child.ArgumentList.Arguments[helperParameter.Ordinal].Expression, model, inputs);
+                                            }
+                                        }
+                                    }
+
+                                    var index = Array.IndexOf(calls, child) + 1;
+                                    var depth = model.GetSymbolInfo(child, context.CancellationToken).Symbol is IMethodSymbol openingMethod
+                                        && InferredType(openingMethod, model, context.CancellationToken) != null ? 0 : 1;
+
+                                    for (; index < calls.Length && depth != 0; index++)
+                                    {
+                                        var attribute = calls[index];
+
+                                        if (IsBuilderCall(attribute, "OpenComponent", model, context.CancellationToken))
+                                        {
+                                            depth++;
+                                        }
+                                        else if (IsBuilderCall(attribute, "CloseComponent", model, context.CancellationToken))
+                                        {
+                                            depth--;
+                                        }
+                                        else if (depth == 1 && (IsBuilderCall(attribute, "AddAttribute", model, context.CancellationToken)
+                                            || IsBuilderCall(attribute, "AddComponentParameter", model, context.CancellationToken))
+                                            && attribute.ArgumentList.Arguments.Count == 3
+                                            && model.GetConstantValue(attribute.ArgumentList.Arguments[1].Expression, context.CancellationToken).Value is string inputName)
+                                        {
+                                            var argument = attribute.ArgumentList.Arguments[2].Expression;
+                                            arguments[inputName] = new FragmentInput(argument, model, inputs);
+                                        }
+                                    }
+
+                                    // Wrapper implementations can live in another generated Razor tree.
+#pragma warning disable RS1030
+                                    Validate(render, model.Compilation.GetSemanticModel(render.SyntaxTree), arguments, nextPath, consumer);
+#pragma warning restore RS1030
+                                    activeWrappers.Remove(type.OriginalDefinition);
+                                }
+
+                                continue;
+                            }
+
+                            if (componentDepth != 0)
                             {
                                 continue;
                             }
 
-                            var type = ComponentType(child, context.SemanticModel, context.CancellationToken);
+                            var method = model.GetSymbolInfo(child, context.CancellationToken).Symbol as IMethodSymbol;
 
-                            if (type != null && allowed.Any(item => Matches(item, type)))
+                            if (method?.ContainingType.ToDisplayString() != "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
+                            {
+                                if (child.Parent is ExpressionStatementSyntax)
+                                {
+                                    ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations", child);
+                                }
+
+                                continue;
+                            }
+
+                            if (child.ArgumentList.Arguments.Count < 2)
                             {
                                 continue;
                             }
 
-                            if (SymbolEqualityComparer.Default.Equals(type,
-                                context.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.DynamicComponent")))
+                            var expression = child.ArgumentList.Arguments[1].Expression;
+                            var constant = model.GetConstantValue(expression, context.CancellationToken);
+
+                            if (IsBuilderCall(child, "OpenElement", model, context.CancellationToken)
+                                && constant.Value is string name)
                             {
-                                ReportUnknown("DynamicComponent selects its rendered component at runtime; use a statically selected component", child);
+                                CheckElement(name);
                             }
-                            else if (type == null)
+                            else if (IsBuilderCall(child, "OpenElement", model, context.CancellationToken))
                             {
-                                ReportUnknown("the builder selects a component type dynamically; use OpenComponent<T>", child);
+                                ReportUnknown("the builder selects an HTML element dynamically; use a constant element name", child);
                             }
-                            else
+                            else if (IsBuilderCall(child, "AddMarkupContent", model, context.CancellationToken)
+                                && constant.Value is string markup)
                             {
-                                var location = locations.TryGetValue(child.SpanStart, out var mapped) ? mapped : fallback;
-                                context.ReportDiagnostic(Diagnostic.Create(InvalidChild, location, type.Name, owner.Name, parameter));
-                            }
-
-                            continue;
-                        }
-
-                        if (componentDepth != 0)
-                        {
-                            continue;
-                        }
-
-                        var method = context.SemanticModel.GetSymbolInfo(child, context.CancellationToken).Symbol as IMethodSymbol;
-
-                        if (method?.ContainingType.ToDisplayString() != "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
-                        {
-                            if (child.Parent is ExpressionStatementSyntax)
-                            {
-                                ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations", child);
-                            }
-
-                            continue;
-                        }
-
-                        if (child.ArgumentList.Arguments.Count < 2)
-                        {
-                            continue;
-                        }
-
-                        var expression = child.ArgumentList.Arguments[1].Expression;
-                        var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
-
-                        if (IsBuilderCall(child, "OpenElement", context.SemanticModel, context.CancellationToken)
-                            && constant.Value is string name)
-                        {
-                            CheckElement(name);
-                        }
-                        else if (IsBuilderCall(child, "OpenElement", context.SemanticModel, context.CancellationToken))
-                        {
-                            ReportUnknown("the builder selects an HTML element dynamically; use a constant element name", child);
-                        }
-                        else if (IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken)
-                            && constant.Value is string markup)
-                        {
-                            // Only Razor's literal markup calls are parsed; MarkupString output stays opaque.
-                            var remaining = Regex.Replace(markup, @"<!--[\s\S]*?-->|</?[A-Za-z](?:""[^""]*""|'[^']*'|[^'"">])*>", match =>
-                            {
-                                var tag = Regex.Match(match.Value, @"^<([A-Za-z][A-Za-z0-9._-]*)");
-
-                                if (tag.Success)
+                                // Only Razor's literal markup calls are parsed; MarkupString output stays opaque.
+                                var remaining = Regex.Replace(markup, @"<!--[\s\S]*?-->|</?[A-Za-z](?:""[^""]*""|'[^']*'|[^'"">])*>", match =>
                                 {
-                                    CheckElement(tag.Groups[1].Value);
+                                    var tag = Regex.Match(match.Value, @"^<([A-Za-z][A-Za-z0-9._-]*)");
+
+                                    if (tag.Success)
+                                    {
+                                        CheckElement(tag.Groups[1].Value);
+                                    }
+
+                                    return "";
+                                });
+                                CheckText(System.Net.WebUtility.HtmlDecode(remaining));
+                            }
+                            else if (IsBuilderCall(child, "AddContent", model, context.CancellationToken)
+                                || IsBuilderCall(child, "AddMarkupContent", model, context.CancellationToken))
+                            {
+                                var forwarded = expression is InvocationExpressionSyntax invocation ? invocation.Expression : expression;
+                                var forwardedSymbol = model.GetSymbolInfo(forwarded, context.CancellationToken).Symbol;
+
+                                if (forwardedSymbol is IPropertySymbol property && IsFragment(property.Type))
+                                {
+                                    if (inputs.TryGetValue(property.Name, out var input))
+                                    {
+                                        var bound = input;
+                                        var seen = new HashSet<FragmentInput>();
+
+                                        while (seen.Add(bound))
+                                        {
+                                            var symbol = bound.Model.GetSymbolInfo(bound.Expression, context.CancellationToken).Symbol;
+
+                                            if (symbol is IPropertySymbol forwardedProperty && bound.Inputs.TryGetValue(forwardedProperty.Name, out var previous))
+                                            {
+                                                bound = previous;
+                                                continue;
+                                            }
+
+                                            break;
+                                        }
+
+                                        var fragmentBody = FragmentBody(bound.Expression, bound.Model, context.CancellationToken,
+                                            new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+
+                                        if (fragmentBody != null)
+                                        {
+                                            Validate(fragmentBody, bound.Model, bound.Inputs, path + "." + property.Name, usage);
+                                        }
+                                        else
+                                        {
+                                            ReportUnknown("forwarded template '" + property.Name + "' is opaque", child);
+                                        }
+                                    }
+                                    else if (path.Length == 0 || !property.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == "Microsoft.AspNetCore.Components.ParameterAttribute")
+                                        || property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(context.CancellationToken) is PropertyDeclarationSyntax declaration
+                                            && (declaration.Initializer != null || declaration.ExpressionBody != null)))
+                                    {
+                                        ReportUnknown("the fragment value or its default implementation is opaque", expression);
+                                    }
+
+                                    continue;
                                 }
 
-                                return "";
-                            });
-                            CheckText(System.Net.WebUtility.HtmlDecode(remaining));
-                        }
-                        else if (IsBuilderCall(child, "AddContent", context.SemanticModel, context.CancellationToken)
-                            || IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken))
-                        {
-                            var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
+                                var type = model.GetTypeInfo(expression, context.CancellationToken).Type;
 
-                            if (type is INamedTypeSymbol fragment && fragment.Name == "RenderFragment"
-                                && fragment.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components")
-                            {
-                                ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", expression);
-                            }
-                            else if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
-                                || !constant.HasValue && type?.SpecialType != SpecialType.System_String)
-                            {
-                                var location = UsageLocation(expression);
-
-                                if (location == null || !suppressions.Suppresses("BCC004", location, source))
+                                if (type is INamedTypeSymbol fragment && fragment.Name == "RenderFragment"
+                                    && fragment.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components")
                                 {
-                                    context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, location ?? fallback, owner.Name, parameter));
+                                    ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", expression);
+                                }
+                                else if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
+                                    || !constant.HasValue && type?.SpecialType != SpecialType.System_String)
+                                {
+                                    var location = UsageLocation(expression);
+
+                                    if (location == null || !suppressions.Suppresses("BCC004", location, source))
+                                    {
+                                        context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, location ?? fallback, owner.Name, parameter));
+                                    }
+                                }
+                                else
+                                {
+                                    CheckText(constant.HasValue ? constant.Value?.ToString() ?? "" : "Text expression");
                                 }
                             }
-                            else
-                            {
-                                CheckText(constant.HasValue ? constant.Value?.ToString() ?? "" : "Text expression");
-                            }
                         }
+
                     }
 
                     void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)
@@ -274,19 +399,24 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             return;
                         }
 
-                        var location = componentUsage ? ownerLocation : UsageLocation(usage);
+                        var location = outputPath.Length != 0 ? outputLocation : componentUsage ? ownerLocation : UsageLocation(usage);
 
                         if (location != null && suppressions.Suppresses("BCC006", location, source))
                         {
                             return;
                         }
 
-                        context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason));
+                        context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason + (outputPath.Length == 0 ? "" : " (via " + outputPath + ")")));
                         reportedUnknown = true;
                     }
 
                     Location? UsageLocation(SyntaxNode usage)
                     {
+                        if (outputPath.Length != 0)
+                        {
+                            return outputLocation;
+                        }
+
                         if (locations.TryGetValue(usage.SpanStart, out var componentLocation))
                         {
                             return componentLocation;
@@ -307,11 +437,13 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         return null;
                     }
 
+                    string PathSuffix() => outputPath.Length == 0 ? "" : " (via " + outputPath + ")";
+
                     void CheckElement(string name)
                     {
                         if (!names.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, fallback, "HTML element '" + name + "'", owner.Name, parameter));
+                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "HTML element '" + name + "'" + PathSuffix(), owner.Name, parameter));
                         }
                     }
 
@@ -319,7 +451,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     {
                         if (!allowText && !string.IsNullOrWhiteSpace(text))
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, fallback, "Visible text", owner.Name, parameter));
+                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "Visible text" + PathSuffix(), owner.Name, parameter));
                         }
                     }
                 }
@@ -327,6 +459,44 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         }
 
         suppressions.Report(context.ReportDiagnostic);
+    }
+
+    private static bool IsFragment(ITypeSymbol type)
+    {
+        return type is INamedTypeSymbol named && named.Name == "RenderFragment"
+            && named.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components";
+    }
+
+    private static BlockSyntax? RenderBody(INamedTypeSymbol type, Compilation compilation,
+        System.Threading.CancellationToken cancellation, out bool empty)
+    {
+        empty = false;
+
+        for (INamedTypeSymbol? current = type; current != null; current = current.BaseType)
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            if (SymbolEqualityComparer.Default.Equals(current, compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ComponentBase")))
+            {
+                empty = true;
+                return null;
+            }
+
+            if (current.DeclaringSyntaxReferences.Length == 0)
+            {
+                return null;
+            }
+
+            var method = current.GetMembers("BuildRenderTree").OfType<IMethodSymbol>()
+                .FirstOrDefault(candidate => candidate.IsOverride && candidate.Parameters.Length == 1);
+
+            if (method != null)
+            {
+                return (method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellation) as MethodDeclarationSyntax)?.Body;
+            }
+        }
+
+        return null;
     }
 
     private static TextSpan? OriginalSpan(Location location, SourceText source, string path)
