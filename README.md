@@ -152,7 +152,8 @@ before the component or fragment expression whose unknown output you have review
 ```
 
 Each comment accepts exactly one ID (`BCC004` or `BCC006`) and a nonempty reason
-after the colon. Matching is case-sensitive. Spaces, tabs and newlines between
+after the colon. The `bcc-suppress*` prefix is reserved for package directives;
+use other wording for ordinary comment prose. Matching is case-sensitive. Spaces, tabs and newlines between
 the comment and target are allowed; other comments, HTML, text and Razor control
 flow interrupt attachment. A component target starts at its opening tag; a
 fragment expression starts at `@` (including `@(...)`). For an opaque fragment

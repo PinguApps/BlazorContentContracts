@@ -269,6 +269,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)
                     {
+                        if (reportedUnknown)
+                        {
+                            return;
+                        }
+
                         var location = componentUsage ? ownerLocation : UsageLocation(usage);
 
                         if (location != null && suppressions.Suppresses("BCC006", location, source))
@@ -276,11 +281,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             return;
                         }
 
-                        if (!reportedUnknown)
-                        {
-                            context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason));
-                            reportedUnknown = true;
-                        }
+                        context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason));
+                        reportedUnknown = true;
                     }
 
                     Location? UsageLocation(SyntaxNode usage)

@@ -10,6 +10,8 @@ Feature: Razor suppressions acknowledge one unknown usage
             | usage | rules |
             | <Slot>@* bcc-suppress-next BCC006: reviewed *@ @Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | none |
             | <Slot>@* bcc-suppress-next BCC006: reviewed *@ @Fragment @Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | BCC006 |
+            | <Slot>@Fragment @* bcc-suppress-next BCC006: reviewed *@ @Fragment</Slot>@code { private RenderFragment Fragment { get; set; } } | BCC006,BCC008 |
+            | <Slot><ChildContent>@* bcc-suppress-next BCC006: reviewed *@ <DynamicComponent Type="@typeof(Bad)" /></ChildContent></Slot> | BCC006,BCC008 |
             | <Slot>@* bcc-suppress-next BCC006: reviewed *@ <DynamicComponent Type="@typeof(Bad)" /><Bad /></Slot> | BCC001 |
             | @* bcc-suppress-next BCC006: reviewed *@ <Slot ChildContent="@Fragment" /><Slot ChildContent="@Fragment" />@code { private RenderFragment Fragment { get; set; } } | BCC006 |
             | <Slot>@* bcc-suppress-next BCC004: reviewed *@ @((MarkupString)"<b />")</Slot> | none |
