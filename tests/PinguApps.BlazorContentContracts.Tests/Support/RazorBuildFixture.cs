@@ -148,7 +148,94 @@ internal sealed class RazorBuildFixture : IDisposable
 
     public void GivenSeverity(string severity)
     {
-        File.WriteAllText(Path.Combine(directory, ".globalconfig"), "is_global = true\ndotnet_diagnostic.BCC006.severity = " + severity);
+        File.WriteAllText(Path.Combine(directory, ".globalconfig"), "is_global = true\ndotnet_diagnostic.BCC006.severity = " + severity
+            + "\ndotnet_diagnostic.BCC004.severity = " + severity);
+    }
+
+    public void GivenRendering()
+    {
+        const string comment = "@* bcc-suppress-next BCC004: trusted markup *@";
+        const string usage = "@using Microsoft.AspNetCore.Components\n<Slot>" + comment + "@((MarkupString)\"<span>Trusted</span>\")</Slot>";
+        GivenComposition(usage);
+        File.WriteAllText(Path.Combine(directory, "Baseline.razor"), usage.Replace(comment, "", StringComparison.Ordinal));
+        var project = Path.Combine(directory, "Consumer.csproj");
+        File.WriteAllText(project, File.ReadAllText(project).Replace("<PropertyGroup>", "<PropertyGroup><OutputType>Exe</OutputType>", StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(directory, "Slot.cs"), """
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Rendering;
+            using PinguApps.BlazorContentContracts;
+
+            public class Slot : ComponentBase
+            {
+                [Parameter, AllowedChildren(typeof(Good))]
+                public RenderFragment ChildContent { get; set; }
+
+                protected override void BuildRenderTree(RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, ChildContent);
+                }
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Program.cs"), """
+            using System;
+            using System.Linq;
+            using System.Reflection;
+            using Microsoft.AspNetCore.Components.Web;
+            using Microsoft.Extensions.DependencyInjection;
+            using Microsoft.Extensions.Logging;
+
+            using var services = new ServiceCollection().AddLogging().BuildServiceProvider();
+            await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+            var types = Assembly.GetExecutingAssembly().GetTypes();
+            var output = await renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                var suppressed = await renderer.RenderComponentAsync(types.Single(type => type.Name == "Usage"), Microsoft.AspNetCore.Components.ParameterView.Empty);
+                var baseline = await renderer.RenderComponentAsync(types.Single(type => type.Name == "Baseline"), Microsoft.AspNetCore.Components.ParameterView.Empty);
+                return (suppressed.ToHtmlString(), baseline.ToHtmlString());
+            });
+
+            if (output.Item1 != "<span>Trusted</span>" || output.Item1 != output.Item2)
+            {
+                throw new Exception("Suppression changed rendered output: " + output);
+            }
+
+            Console.WriteLine("Identical rendered markup: " + output.Item1);
+            """);
+    }
+
+    public void ThenRendering()
+    {
+        Assert.True(exitCode == 0, output);
+        var dotnet = Environment.GetEnvironmentVariable("BCC_CONSUMER_DOTNET") ?? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")!;
+        var start = new ProcessStartInfo(dotnet)
+        {
+            WorkingDirectory = directory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        start.ArgumentList.Add(Path.Combine(directory, "bin", "Debug", Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0", "Consumer.dll"));
+        start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+
+        Assert.True(process.ExitCode == 0, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());
+        Assert.Contains("Identical rendered markup: <span>Trusted</span>", stdout.GetAwaiter().GetResult());
+    }
+
+    public void ThenSuppressions(string rules)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var diagnostics = results.Where(result => result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal)).ToArray();
+        var expected = rules == "none" ? Array.Empty<string>() : rules.Split(',');
+
+        Assert.Equal(expected.OrderBy(rule => rule), diagnostics.Select(result => result.GetProperty("ruleId").GetString()).OrderBy(rule => rule));
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+        Assert.All(diagnostics, result => Assert.EndsWith("Usage.razor", result.GetProperty("locations")[0].GetProperty("resultFile").GetProperty("uri").GetString()));
+        Assert.Equal(!expected.Any(rule => rule is "BCC001" or "BCC004" or "BCC005" or "BCC006"), exitCode == 0);
     }
 
     public void ThenUnknown(int unknown, int invalid, string severity = "warning")
