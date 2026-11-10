@@ -112,7 +112,7 @@ activation remain separate release work.
 
 | ID | Default | Meaning and action |
 | --- | --- | --- |
-| BCC001 | Error | Disallowed component; use an allowed component. |
+| BCC001 | Error | Retained shipped diagnostic ID; not currently emitted. Output violations use BCC005 and unresolved output uses BCC006. |
 | BCC002 | Error | Invalid declaration; correct the indicated contract argument or target. |
 | BCC003 | Error | Conflicting inherited contract; preserve the base contract. |
 | BCC004 | Warning | Opaque markup; replace it with inspectable markup. |

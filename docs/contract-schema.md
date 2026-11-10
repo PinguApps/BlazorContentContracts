@@ -66,7 +66,7 @@ public class Panel : ComponentBase
 }
 ```
 
-Declarations and static direct component usages are validated. BCC001 matches exact and derived types, open/closed generic families and inherited parameter contracts. Allowed components are terminal boundaries. HTML containers are checked recursively within each static slot, including HTML-only
+Declarations and local output are validated. Allowed components match exact and derived types and open/closed generic families; inherited parameter contracts remain in force. Allowed components are terminal boundaries. Forbidden HTML/text output reports BCC005; unavailable, unsupported or recursive wrapper output reports BCC006. HTML containers are checked recursively within each static slot, including HTML-only
 contracts. HTML, custom elements and SVG local names all use ordinal case-insensitive
 matching (for example `linearGradient` matches `lineargradient`); names with namespace
 prefixes are unsupported. Text permission applies inside containers too. Razor comments,
