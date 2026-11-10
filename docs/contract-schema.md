@@ -72,7 +72,8 @@ matching (for example `linearGradient` matches `lineargradient`); names with nam
 prefixes are unsupported. Text permission applies inside containers too. Razor comments,
 HTML comments and whitespace are ignored; decoded visible entities count as text.
 `BCC005` rejects HTML/text; `BCC004` warns for opaque `MarkupString` and unresolved
-expressions, even when text is allowed. Constant text expressions are checked without
+non-string output, even when text is allowed. String expressions follow text permission.
+Constant text expressions are checked without
 executing code. Wrapper implementation and forwarding composition remain later work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.
