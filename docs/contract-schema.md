@@ -73,6 +73,11 @@ prefixes are unsupported. Text permission applies inside containers too. Razor c
 HTML comments and whitespace are ignored; decoded visible entities count as text.
 `BCC005` rejects HTML/text; `BCC004` warns for opaque `MarkupString` and unresolved
 non-string output, even when text is allowed. String expressions follow text permission.
+Implicit/named slots and typed template bodies receive their parameter's contract.
+All conditional/switch branches and loop bodies are inspected regardless of runtime data.
+Inline fragments and local fragment initializers are expanded at emission sites; arbitrary
+assignment/alias tracking and wrapper implementation expansion remain later work.
+Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
 executing code. Wrapper implementation and forwarding composition remain later work.
 Future schema changes must retain these identities/defaults or document the required

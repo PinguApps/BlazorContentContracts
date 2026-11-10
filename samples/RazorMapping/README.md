@@ -33,8 +33,12 @@ calls in source order, checks counts and names, and creates an external-file
 location over the original tag name. Comments are masked without shifting offsets.
 A count/name mismatch uses the start of the Razor source as a fallback diagnostic location.
 This is a deliberately bounded foundation, not a complete Razor parser.
-Explicit named templates, directives other than using, wrapper output and dynamic fragments are not qualified
-by this slice. They must not be interpreted as validated because a build passes.
+Implicit and named slots, typed template contexts, conditional/switch branches and loop
+bodies are checked without executing application code. Inline fragments and local fragment
+initializers are inspected when emitted; unused lambdas and event/reference captures do not
+emit content. Allowed components remain terminal boundaries. Wrapper output and fragment
+assignment/alias tracking remain later work. Named slot tags can cause the conservative
+mapper to use its fallback location.
 Automatic transitive activation and automatic source inclusion remain later work.
 
 ## Support evidence
