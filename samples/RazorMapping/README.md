@@ -25,8 +25,8 @@ Razor's generated C# supplies a `#pragma checksum` identifying the original file
 but static component tags have no individual `#line` mapping in SDK 11.0.100.
 Consumers must explicitly include Razor sources as `AdditionalFiles` (see sample).
 The analyzer reads those snapshots through Roslyn, with cancellation, rather than
-reading files from disk. That original text also retains Razor comments for later
-local suppression work; this PR ignores comments but implements no suppression.
+reading files from disk. That original text also retains the package's
+`bcc-suppress-next` Razor comments for one-usage suppression (see the root README).
 
 For static markup the mapper pairs component opening tags with semantic generated
 calls in source order, checks counts and names, and creates an external-file

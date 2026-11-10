@@ -1,0 +1,13 @@
+@using Microsoft.AspNetCore.Components
+
+<Slot>
+    @* bcc-suppress-next BCC006: supplied by the application *@
+    @Fragment
+    @* bcc-suppress-next BCC004: trusted application markup *@
+    @((MarkupString)"<span>Trusted</span>")
+</Slot>
+
+@code
+{
+    private RenderFragment? Fragment { get; set; }
+}

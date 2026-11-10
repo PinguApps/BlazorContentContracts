@@ -118,6 +118,8 @@ activation remain separate release work.
 | BCC004 | Warning | Opaque markup; replace it with inspectable markup. |
 | BCC005 | Error | Disallowed HTML or visible text; adjust the content or contract. |
 | BCC006 | Warning | Opaque fragment/method output, runtime component selection or unsupported builder helper; the message explains the uncertainty. Inline inspectable output where possible. |
+| BCC007 | Warning | Malformed package suppression comment; specify `next`, BCC004 or BCC006, and a reason. |
+| BCC008 | Warning | Unused suppression; remove it or move it immediately before the intended usage. |
 
 Unknown output does not hide definite violations in siblings or other branches.
 BCC006 is limited to one warning per restricted slot usage. Explicitly allowed
@@ -134,6 +136,46 @@ dotnet_diagnostic.BCC004.severity = warning
 ```
 
 Standard values such as `none`, `warning` and `error` also apply to the other IDs.
+
+### Acknowledge one unknown usage
+
+This is **package syntax**, not a Razor standard. Use a Razor comment immediately
+before the component or fragment expression whose unknown output you have reviewed:
+
+```razor
+<Slot>
+    @* bcc-suppress-next BCC006: supplied by our application *@
+    @Fragment
+    @* bcc-suppress-next BCC004: trusted markup from our renderer *@
+    @((MarkupString)trustedMarkup)
+</Slot>
+```
+
+Each comment accepts exactly one ID (`BCC004` or `BCC006`) and a nonempty reason
+after the colon. Matching is case-sensitive. Spaces, tabs and newlines between
+the comment and target are allowed; other comments, HTML, text and Razor control
+flow interrupt attachment. A component target starts at its opening tag; a
+fragment expression starts at `@` (including `@(...)`). For an opaque fragment
+passed as a component parameter, put the comment before that component.
+
+Only the specified unknown diagnostic for that usage is suppressed, even when
+promoted to an error. Other siblings, other unknown IDs and definite invalid
+content remain checked. A comment before a container does not exempt its nested
+expressions. Comments add no runtime components and do not change rendering.
+Malformed directives report BCC007; valid directives that suppress nothing report
+BCC008 at the comment. Missing or ambiguous source mapping leaves the suppression
+unused rather than exempting a broader region. Explicit Razor `AdditionalFiles`
+setup is still required. Standard C# suppression/configuration remains available
+for diagnostics with C# locations; a C# pragma does not cover an external Razor
+diagnostic span.
+
+The executable Gherkin fixtures in [RazorSuppressions.feature](tests/PinguApps.BlazorContentContracts.Tests/Features/RazorSuppressions.feature) exercise
+real `.razor` consumers on .NET 10/11 with the packed artifacts.
+[Suppression.razor](samples/RazorMapping/Suppression.razor) is a reusable editor
+fixture: removing either comment should restore its unknown-output diagnostic;
+duplicating the expression should leave the sibling checked. Per the agreed
+PIN-1255 scope, live Visual Studio/VS Code diagnostics and insertion actions remain
+unqualified until PIN-1270; build evidence does not establish live-editor support.
 
 ## Public contract declarations
 
