@@ -183,7 +183,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         if (method?.ContainingType.ToDisplayString() != "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
                         {
-                            ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations");
+                            if (child.Parent is ExpressionStatementSyntax)
+                            {
+                                ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations");
+                            }
+
                             continue;
                         }
 

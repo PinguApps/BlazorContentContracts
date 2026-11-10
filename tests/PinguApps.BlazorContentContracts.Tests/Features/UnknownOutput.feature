@@ -20,3 +20,14 @@ Feature: Unknown output retains partial knowledge
         And unknown output severity is "error"
         When the real Razor SDK builds the consumer
         Then unresolved output is an error
+
+    Scenario Outline: Control-flow method calls do not emit content
+        Given a composed Razor consumer using '<usage>'
+        When the real Razor SDK builds the consumer
+        Then unresolved output has <unknown> warnings and <invalid> definite violations
+
+        Examples:
+            | usage | unknown | invalid |
+            | <Slot>@if (Visible()) { <Good /> }</Slot>@code { private bool Visible() => true; } | 0 | 0 |
+            | <Slot>@foreach (var item in Items()) { <Good /> }</Slot>@code { private int[] Items() => new int[0]; } | 0 | 0 |
+            | <Slot>@if (Visible()) { @Fragment } else { <Bad /> }</Slot>@code { private bool Visible() => true; private RenderFragment Fragment { get; set; } } | 1 | 1 |

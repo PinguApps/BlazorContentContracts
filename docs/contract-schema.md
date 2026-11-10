@@ -72,7 +72,14 @@ matching (for example `linearGradient` matches `lineargradient`); names with nam
 prefixes are unsupported. Text permission applies inside containers too. Razor comments,
 HTML comments and whitespace are ignored; decoded visible entities count as text.
 `BCC005` rejects HTML/text; `BCC004` warns for opaque `MarkupString` and unresolved
-non-string output, even when text is allowed. String expressions follow text permission.
+non-string output other than fragments, even when text is allowed. String expressions follow text permission.
+`BCC006` warns for opaque fragment values or method results, runtime `DynamicComponent`
+selection, dynamic builder component types or element names, and unsupported manual
+builder helper statements. Method calls used in control-flow conditions or collection
+expressions do not themselves emit content. Each restricted slot usage receives at most
+one BCC006 warning; known invalid siblings and branches still produce errors. Standard
+global analyzer severity settings can promote or disable these compile-time diagnostics;
+they imply no runtime enforcement.
 Implicit/named slots and typed template bodies receive their parameter's contract.
 All conditional/switch branches and loop bodies are inspected regardless of runtime data.
 Block-bodied inline fragment lambdas and local fragment initializers are expanded at emission sites; arbitrary
