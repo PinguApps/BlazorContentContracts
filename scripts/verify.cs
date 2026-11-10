@@ -40,7 +40,7 @@ try
 
     Run(root, "test", "-c", "Release", "--no-build");
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RealRazorBuildDiagnostics");
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput");
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";

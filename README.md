@@ -108,6 +108,33 @@ The planned weekly publishing channel includes dependency changes merged into
 `main`. Open or unmerged Renovate PRs are not included. Publishing setup and
 activation remain separate release work.
 
+## Diagnostics
+
+| ID | Default | Meaning and action |
+| --- | --- | --- |
+| BCC001 | Error | Disallowed component; use an allowed component. |
+| BCC002 | Error | Invalid declaration; correct the indicated contract argument or target. |
+| BCC003 | Error | Conflicting inherited contract; preserve the base contract. |
+| BCC004 | Warning | Opaque markup; replace it with inspectable markup. |
+| BCC005 | Error | Disallowed HTML or visible text; adjust the content or contract. |
+| BCC006 | Warning | Opaque fragment/method output, runtime component selection or unsupported builder helper; the message explains the uncertainty. Inline inspectable output where possible. |
+
+Unknown output does not hide definite violations in siblings or other branches.
+BCC006 is limited to one warning per restricted slot usage. Explicitly allowed
+components remain terminal boundaries, including DynamicComponent when allowed.
+These diagnostics run at compile time and imply no runtime enforcement.
+
+Use standard analyzer configuration in the consumer's `.globalconfig` (global
+settings also apply to diagnostics located in original Razor files):
+
+```ini
+is_global = true
+dotnet_diagnostic.BCC006.severity = error
+dotnet_diagnostic.BCC004.severity = warning
+```
+
+Standard values such as `none`, `warning` and `error` also apply to the other IDs.
+
 ## Public contract declarations
 
 `AllowedChildren`, `ProducesContent` and `ForwardsContent` describe fragment inputs,

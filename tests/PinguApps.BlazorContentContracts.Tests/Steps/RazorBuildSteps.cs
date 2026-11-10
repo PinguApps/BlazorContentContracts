@@ -67,4 +67,22 @@ public sealed class RazorBuildSteps : IDisposable
     {
         fixture.GivenComposition(usage);
     }
+
+    [Given("unknown output severity is {string}")]
+    public void GivenSeverity(string severity)
+    {
+        fixture.GivenSeverity(severity);
+    }
+
+    [Then("unresolved output has {int} warnings and {int} definite violations")]
+    public void ThenUnknown(int unknown, int invalid)
+    {
+        fixture.ThenUnknown(unknown, invalid);
+    }
+
+    [Then("unresolved output is an error")]
+    public void ThenUnknownError()
+    {
+        fixture.ThenUnknown(1, 0, "error");
+    }
 }

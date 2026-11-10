@@ -25,7 +25,13 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         "BCC004", "Unresolved markup output", "Markup output in '{0}.{1}' cannot be analysed; use inspectable content",
         "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup);
+    private static readonly DiagnosticDescriptor UnknownOutput = new(
+        "BCC006", "Unresolved content output", "Output in '{0}.{1}' cannot be analysed: {2}",
+        "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "Use inspectable fragments or supported builder calls to establish the emitted content. This is a compile-time check only.",
+        helpLinkUri: "https://github.com/PinguApps/BlazorContentContracts#diagnostics");
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -101,16 +107,19 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     }
 
                     var allowed = contract.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>().ToArray();
-                    var lambda = call.ArgumentList.Arguments[2].Expression.DescendantNodesAndSelf()
-                        .OfType<LambdaExpressionSyntax>().FirstOrDefault(candidate => candidate.Body is BlockSyntax);
+                    var value = call.ArgumentList.Arguments[2].Expression;
+                    var content = FragmentBody(value, context.SemanticModel, context.CancellationToken,
+                        new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+                    var fallback = ownerLocation ?? Location.Create(file!.Path,
+                        new TextSpan(0, 1), source.Lines.GetLinePositionSpan(new TextSpan(0, 1)));
+                    var reportedUnknown = false;
 
-                    if (lambda?.Body is not BlockSyntax content)
+                    if (content == null)
                     {
+                        ReportUnknown("the fragment value or method result is opaque; supply an inline fragment");
                         continue;
                     }
 
-                    var fallback = ownerLocation ?? Location.Create(file!.Path,
-                        new TextSpan(0, 1), source.Lines.GetLinePositionSpan(new TextSpan(0, 1)));
                     var html = contract.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
                     var names = html.Kind == TypedConstantKind.Array && !html.IsNull
                         ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
@@ -142,7 +151,21 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                             var type = ComponentType(child, context.SemanticModel, context.CancellationToken);
 
-                            if (type != null && !allowed.Any(item => Matches(item, type)))
+                            if (type != null && allowed.Any(item => Matches(item, type)))
+                            {
+                                continue;
+                            }
+
+                            if (SymbolEqualityComparer.Default.Equals(type,
+                                context.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.DynamicComponent")))
+                            {
+                                ReportUnknown("DynamicComponent selects its rendered component at runtime; use a statically selected component");
+                            }
+                            else if (type == null)
+                            {
+                                ReportUnknown("the builder selects a component type dynamically; use OpenComponent<T>");
+                            }
+                            else
                             {
                                 var location = locations.TryGetValue(child.SpanStart, out var mapped) ? mapped : fallback;
                                 context.ReportDiagnostic(Diagnostic.Create(InvalidChild, location, type.Name, owner.Name, parameter));
@@ -151,7 +174,20 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             continue;
                         }
 
-                        if (componentDepth != 0 || child.ArgumentList.Arguments.Count < 2)
+                        if (componentDepth != 0)
+                        {
+                            continue;
+                        }
+
+                        var method = context.SemanticModel.GetSymbolInfo(child, context.CancellationToken).Symbol as IMethodSymbol;
+
+                        if (method?.ContainingType.ToDisplayString() != "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder")
+                        {
+                            ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations");
+                            continue;
+                        }
+
+                        if (child.ArgumentList.Arguments.Count < 2)
                         {
                             continue;
                         }
@@ -163,6 +199,10 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             && constant.Value is string name)
                         {
                             CheckElement(name);
+                        }
+                        else if (IsBuilderCall(child, "OpenElement", context.SemanticModel, context.CancellationToken))
+                        {
+                            ReportUnknown("the builder selects an HTML element dynamically; use a constant element name");
                         }
                         else if (IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken)
                             && constant.Value is string markup)
@@ -186,7 +226,12 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         {
                             var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
 
-                            if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
+                            if (type is INamedTypeSymbol fragment && fragment.Name == "RenderFragment"
+                                && fragment.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components")
+                            {
+                                ReportUnknown("the fragment value or method result is opaque; supply an inline fragment");
+                            }
+                            else if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
                                 || !constant.HasValue && type?.SpecialType != SpecialType.System_String)
                             {
                                 context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, fallback, owner.Name, parameter));
@@ -195,6 +240,15 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             {
                                 CheckText(constant.HasValue ? constant.Value?.ToString() ?? "" : "Text expression");
                             }
+                        }
+                    }
+
+                    void ReportUnknown(string reason)
+                    {
+                        if (!reportedUnknown)
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, fallback, owner.Name, parameter, reason));
+                            reportedUnknown = true;
                         }
                     }
 

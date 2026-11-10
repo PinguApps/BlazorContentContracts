@@ -146,6 +146,28 @@ internal sealed class RazorBuildFixture : IDisposable
             """);
     }
 
+    public void GivenSeverity(string severity)
+    {
+        File.WriteAllText(Path.Combine(directory, ".globalconfig"), "is_global = true\ndotnet_diagnostic.BCC006.severity = " + severity);
+    }
+
+    public void ThenUnknown(int unknown, int invalid, string severity = "warning")
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var unresolved = results.Where(result => result.GetProperty("ruleId").GetString() == "BCC006").ToArray();
+
+        Assert.Equal(unknown, unresolved.Length);
+        Assert.Equal(invalid, results.Count(result => result.GetProperty("ruleId").GetString() is "BCC001" or "BCC005"));
+        Assert.All(unresolved, result =>
+        {
+            Assert.Equal(severity, result.GetProperty("level").GetString());
+            Assert.Contains("cannot be analysed:", result.GetProperty("message").GetString());
+        });
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+        Assert.True((invalid == 0 && severity == "warning") == (exitCode == 0), output);
+    }
+
     public void ThenMarkupDiagnostics(string rule, int count)
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
