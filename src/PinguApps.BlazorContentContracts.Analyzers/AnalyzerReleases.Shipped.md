@@ -12,3 +12,5 @@ BCC003 | ContentContracts | Error | Conflicting inherited declaration; preserve 
 BCC004 | ContentContracts | Warning | Opaque or unresolved markup output requires inspectable content
 BCC005 | ContentContracts | Error | HTML element or visible text violates a restricted fragment contract
 BCC006 | ContentContracts | Warning | Unresolved fragment, dynamic component selection or unsupported manual builder output; use inspectable output
+BCC007 | ContentContracts | Warning | Malformed Razor suppression; specify next usage, supported diagnostic ID and reason
+BCC008 | ContentContracts | Warning | Unused Razor suppression; remove or move the comment

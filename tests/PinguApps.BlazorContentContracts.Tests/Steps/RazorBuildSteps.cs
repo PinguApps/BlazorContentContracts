@@ -68,6 +68,24 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.GivenComposition(usage);
     }
 
+    [Given("a composed Razor consumer using")]
+    public void GivenMultilineComposition(string usage)
+    {
+        fixture.GivenComposition(usage);
+    }
+
+    [Given("a Razor rendering comparison with a suppression comment")]
+    public void GivenRendering()
+    {
+        fixture.GivenRendering();
+    }
+
+    [Then("the suppressed and original components render identical markup")]
+    public void ThenRendering()
+    {
+        fixture.ThenRendering();
+    }
+
     [Given("unknown output severity is {string}")]
     public void GivenSeverity(string severity)
     {
@@ -84,5 +102,11 @@ public sealed class RazorBuildSteps : IDisposable
     public void ThenUnknownError()
     {
         fixture.ThenUnknown(1, 0, "error");
+    }
+
+    [Then("suppression diagnostics are {string}")]
+    public void ThenSuppressions(string rules)
+    {
+        fixture.ThenSuppressions(rules);
     }
 }

@@ -31,7 +31,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         description: "Use inspectable fragments or supported builder calls to establish the emitted content. This is a compile-time check only.",
         helpLinkUri: "https://github.com/PinguApps/BlazorContentContracts#diagnostics");
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -65,6 +65,10 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             .Where(call => !InInferenceHelper(call) && IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
+        var literals = root.DescendantNodes().OfType<LiteralExpressionSyntax>()
+            .Select(literal => OriginalSpan(literal, source, file.Path)).Where(span => span.HasValue)
+            .Select(span => span!.Value).ToArray();
+        var suppressions = new RazorSuppressions(source, file.Path, literals, context.CancellationToken);
 
         foreach (var block in root.DescendantNodes().OfType<BlockSyntax>())
         {
@@ -116,7 +120,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     if (content == null)
                     {
-                        ReportUnknown("the fragment value or method result is opaque; supply an inline fragment");
+                        ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", value, componentUsage: true);
                         continue;
                     }
 
@@ -159,11 +163,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             if (SymbolEqualityComparer.Default.Equals(type,
                                 context.SemanticModel.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.DynamicComponent")))
                             {
-                                ReportUnknown("DynamicComponent selects its rendered component at runtime; use a statically selected component");
+                                ReportUnknown("DynamicComponent selects its rendered component at runtime; use a statically selected component", child);
                             }
                             else if (type == null)
                             {
-                                ReportUnknown("the builder selects a component type dynamically; use OpenComponent<T>");
+                                ReportUnknown("the builder selects a component type dynamically; use OpenComponent<T>", child);
                             }
                             else
                             {
@@ -185,7 +189,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         {
                             if (child.Parent is ExpressionStatementSyntax)
                             {
-                                ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations");
+                                ReportUnknown("a manual builder helper call has unsupported output; inline its builder operations", child);
                             }
 
                             continue;
@@ -206,7 +210,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         }
                         else if (IsBuilderCall(child, "OpenElement", context.SemanticModel, context.CancellationToken))
                         {
-                            ReportUnknown("the builder selects an HTML element dynamically; use a constant element name");
+                            ReportUnknown("the builder selects an HTML element dynamically; use a constant element name", child);
                         }
                         else if (IsBuilderCall(child, "AddMarkupContent", context.SemanticModel, context.CancellationToken)
                             && constant.Value is string markup)
@@ -233,12 +237,17 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             if (type is INamedTypeSymbol fragment && fragment.Name == "RenderFragment"
                                 && fragment.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components")
                             {
-                                ReportUnknown("the fragment value or method result is opaque; supply an inline fragment");
+                                ReportUnknown("the fragment value or method result is opaque; supply an inline fragment", expression);
                             }
                             else if (type?.ToDisplayString() == "Microsoft.AspNetCore.Components.MarkupString"
                                 || !constant.HasValue && type?.SpecialType != SpecialType.System_String)
                             {
-                                context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, fallback, owner.Name, parameter));
+                                var location = UsageLocation(expression);
+
+                                if (location == null || !suppressions.Suppresses("BCC004", location, source))
+                                {
+                                    context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, location ?? fallback, owner.Name, parameter));
+                                }
                             }
                             else
                             {
@@ -247,13 +256,37 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         }
                     }
 
-                    void ReportUnknown(string reason)
+                    void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)
                     {
+                        var location = componentUsage ? ownerLocation : UsageLocation(usage);
+
+                        if (location != null && suppressions.Suppresses("BCC006", location, source))
+                        {
+                            return;
+                        }
+
                         if (!reportedUnknown)
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, fallback, owner.Name, parameter, reason));
+                            context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason));
                             reportedUnknown = true;
                         }
+                    }
+
+                    Location? UsageLocation(SyntaxNode usage)
+                    {
+                        if (locations.TryGetValue(usage.SpanStart, out var componentLocation))
+                        {
+                            return componentLocation;
+                        }
+
+                        var mapped = OriginalSpan(usage, source, file.Path);
+
+                        if (mapped.HasValue)
+                        {
+                            return Location.Create(file.Path, mapped.Value, source.Lines.GetLinePositionSpan(mapped.Value));
+                        }
+
+                        return null;
                     }
 
                     void CheckElement(string name)
@@ -274,6 +307,29 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 }
             }
         }
+
+        suppressions.Report(context.ReportDiagnostic);
+    }
+
+    private static TextSpan? OriginalSpan(SyntaxNode node, SourceText source, string path)
+    {
+        var mapped = node.GetLocation().GetMappedLineSpan();
+
+        if (!mapped.IsValid || !string.Equals(mapped.Path, path, StringComparison.OrdinalIgnoreCase)
+            || mapped.StartLinePosition.Line >= source.Lines.Count || mapped.EndLinePosition.Line >= source.Lines.Count)
+        {
+            return null;
+        }
+
+        var startLine = source.Lines[mapped.StartLinePosition.Line];
+        var endLine = source.Lines[mapped.EndLinePosition.Line];
+
+        if (mapped.StartLinePosition.Character > startLine.Span.Length || mapped.EndLinePosition.Character > endLine.Span.Length)
+        {
+            return null;
+        }
+
+        return TextSpan.FromBounds(startLine.Start + mapped.StartLinePosition.Character, endLine.Start + mapped.EndLinePosition.Character);
     }
 
     private static IEnumerable<InvocationExpressionSyntax> ContentCalls(SyntaxNode node, SemanticModel model,
