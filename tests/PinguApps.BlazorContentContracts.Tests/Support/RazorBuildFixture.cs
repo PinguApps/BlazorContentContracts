@@ -17,6 +17,33 @@ internal sealed class RazorBuildFixture : IDisposable
     private int exitCode;
     private string output = "";
 
+    public void GivenWrapper(string markup, string usage)
+    {
+        GivenComposition("<Slot>" + usage + "</Slot>");
+        File.WriteAllText(Path.Combine(directory, "GenericWrapper.razor"), "@using Microsoft.AspNetCore.Components\n@typeparam TItem\n@ChildContent\n@code { [Parameter] public TItem Value { get; set; } [Parameter] public RenderFragment ChildContent { get; set; } }");
+        File.WriteAllText(Path.Combine(directory, "Inner.razor"), "@using Microsoft.AspNetCore.Components\n@ChildContent\n@code { [Parameter] public RenderFragment ChildContent { get; set; } }");
+        File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n" + markup + "\n" + """
+            @code {
+                [Parameter] public RenderFragment Header { get; set; }
+                [Parameter] public RenderFragment Body { get; set; }
+                [Parameter] public RenderFragment Footer { get; set; }
+                [Parameter] public RenderFragment<int> Template { get; set; }
+                public Wrapper() { throw new System.Exception("Never construct"); }
+                protected override void OnInitialized() { throw new System.Exception("Never run lifecycle"); }
+                private RenderFragment Factory() => throw new System.Exception("Never execute");
+            }
+            """);
+    }
+
+    public void ThenWrapperPath()
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var diagnostic = Assert.Single(sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray(),
+            result => result.GetProperty("ruleId").GetString() == "BCC005");
+        Assert.Contains("Wrapper", diagnostic.GetProperty("message").GetString());
+        Assert.EndsWith("Usage.razor", diagnostic.GetProperty("locations")[0].GetProperty("resultFile").GetProperty("uri").GetString());
+    }
+
     public void GivenConsumer(string kind)
     {
         Directory.CreateDirectory(directory);
@@ -87,6 +114,11 @@ internal sealed class RazorBuildFixture : IDisposable
 
             public class Good : ComponentBase
             {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, "component output");
+                }
+
             }
             """);
         File.WriteAllText(Path.Combine(directory, "Bad.cs"), """
@@ -94,6 +126,10 @@ internal sealed class RazorBuildFixture : IDisposable
 
             public class Bad : ComponentBase
             {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, "invalid output");
+                }
             }
             """);
     }
@@ -140,6 +176,11 @@ internal sealed class RazorBuildFixture : IDisposable
 
             public class Good : ComponentBase
             {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, "component output");
+                }
+
                 [Parameter] public RenderFragment ChildContent { get; set; }
                 [Parameter] public EventCallback Activated { get; set; }
             }
@@ -297,6 +338,11 @@ internal sealed class RazorBuildFixture : IDisposable
 
             public class Family<T> : ComponentBase
             {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, "component output");
+                }
+
                 [Parameter] public T Value { get; set; }
                 [Parameter] public RenderFragment ChildContent { get; set; }
                 [Parameter] public EventCallback Activated { get; set; }
@@ -317,6 +363,11 @@ internal sealed class RazorBuildFixture : IDisposable
 
             public class Family<T> : ComponentBase
             {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    builder.AddContent(0, "component output");
+                }
+
             }
             """);
         File.WriteAllText(Path.Combine(directory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components");
@@ -330,7 +381,7 @@ internal sealed class RazorBuildFixture : IDisposable
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
         Assert.True((count == 0) == (exitCode == 0), output);
 
-        foreach (var diagnostic in results.Where(result => result.GetProperty("ruleId").GetString() == "BCC001"))
+        foreach (var diagnostic in results.Where(result => result.GetProperty("ruleId").GetString() == "BCC005"))
         {
             var location = diagnostic.GetProperty("locations")[0].GetProperty("resultFile");
             Assert.EndsWith("Usage.razor", location.GetProperty("uri").GetString());
@@ -384,7 +435,7 @@ internal sealed class RazorBuildFixture : IDisposable
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
         var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
-        var diagnostics = results.Where(result => result.GetProperty("ruleId").GetString() == "BCC001").ToArray();
+        var diagnostics = results.Where(result => result.GetProperty("ruleId").GetString() == "BCC005").ToArray();
 
         if (expected == "none")
         {

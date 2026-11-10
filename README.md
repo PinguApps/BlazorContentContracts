@@ -2,7 +2,7 @@
 
 Planned build-time checking of Blazor component content contracts. Component authors will describe permitted components, HTML elements and text; analyzers will check Razor usage, wrappers and forwarded fragments.
 
-The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. A minimal static restricted-slot slice reports BCC001 at original Razor tag spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
+The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. Restricted slots analyse local wrapper output at original Razor usage spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
 
 ## Build and verify
 
@@ -17,7 +17,7 @@ Real Razor scenarios also run with SDK 10.0.403 targeting .NET 10. Install both 
 Both packages target `netstandard2.0`; repository tests and samples target .NET 11. The annotation package has no Roslyn dependency. The analyzer package carries its
 assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
 assets. Automatic transitive activation remains later work; Razor diagnostics require explicit additional-source setup.
-BCC001 checks direct component symbols, base classes, open and closed generic families, and inherited slot contracts in the qualified static slice. HTML containers and their descendants are checked independently of text permission; BCC005 rejects forbidden HTML/text and BCC004 warns for opaque markup. Add future rules directly to
+Allowed components match symbols, base classes and open or closed generic families, and stop expansion. Local wrappers are expanded recursively; proven-empty components pass and unavailable implementations warn. HTML containers and their descendants are checked independently of text permission; BCC005 rejects forbidden HTML/text and BCC004 warns for opaque markup. Add future rules directly to
 `AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
 retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.
 The verification command disables .NET's automatic global-tools PATH integration
@@ -184,4 +184,4 @@ unqualified until PIN-1270; build evidence does not establish live-editor suppor
 fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
 for supported targets, defaults, examples and inheritance rules. BCC002 validates
 declarations and BCC003 rejects conflicting inherited declarations without executing
-application code. Output implementation validation and composition remain later work.
+application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Compiled output-contract validation and trust remain later work.
