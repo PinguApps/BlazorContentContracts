@@ -8,7 +8,7 @@
       "description": "Show SDK upgrades outside the qualified feature band for dashboard approval.",
       "matchManagers": ["nuget"],
       "matchPackageNames": ["dotnet-sdk"],
-      "matchNewValue": "!/^10\\.0\\.4[0-9]{2}$/",
+      "matchNewValue": "!/^11\\.0\\.1[0-9]{2}$/",
       "dependencyDashboardApproval": true
     },
     {

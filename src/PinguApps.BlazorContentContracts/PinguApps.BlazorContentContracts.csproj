@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Annotations for Blazor component content contracts, including restricted fragment child types.</Description>
   </PropertyGroup>
 </Project>

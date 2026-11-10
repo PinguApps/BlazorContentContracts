@@ -20,7 +20,9 @@ internal sealed class RazorBuildFixture : IDisposable
     public void GivenConsumer(string kind)
     {
         Directory.CreateDirectory(directory);
-        File.Copy(Path.Combine(RepositoryRoot(), "global.json"), Path.Combine(directory, "global.json"));
+        var net10 = Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") == "net10.0";
+        var sdk = net10 ? "10.0.403" : "11.0.100";
+        File.WriteAllText(Path.Combine(directory, "global.json"), JsonSerializer.Serialize(new { sdk = new { version = sdk, rollForward = "latestPatch" } }));
         content = kind switch
         {
             "invalid" => "<Slot>\n    <Bad />\n</Slot>",
@@ -37,7 +39,7 @@ internal sealed class RazorBuildFixture : IDisposable
         File.WriteAllText(Path.Combine(directory, "Consumer.csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk.Razor">
               <PropertyGroup>
-                <TargetFramework>net10.0</TargetFramework>
+                <TargetFramework>{{Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0"}}</TargetFramework>
                 <ErrorLog>diagnostics.sarif</ErrorLog>
                 <RestorePackagesPath>{{Path.Combine(directory, "packages")}}</RestorePackagesPath>
                 <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
@@ -96,9 +98,80 @@ internal sealed class RazorBuildFixture : IDisposable
             """);
     }
 
+    public void GivenFamily(string allowance, string usage, string inheritance)
+    {
+        GivenConsumer("valid");
+        content = "@using Families\n<Slot>" + usage + "</Slot>";
+        File.WriteAllText(Path.Combine(directory, "Usage.razor"), content);
+        File.WriteAllText(Path.Combine(directory, "SlotBase.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public class SlotBase : ComponentBase
+            {
+                [Parameter, AllowedChildren(typeof({{allowance}}))]
+                public virtual RenderFragment ChildContent { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Slot.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public class Slot : SlotBase
+            {
+                {{inheritance}}
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Family.cs"), """
+            using Microsoft.AspNetCore.Components;
+
+            namespace Families;
+
+            public class Family<T> : ComponentBase
+            {
+                [Parameter] public T Value { get; set; }
+                [Parameter] public RenderFragment ChildContent { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "Derived.cs"), """
+            namespace Families;
+
+            public class Derived : Family<int>
+            {
+            }
+            """);
+        Directory.CreateDirectory(Path.Combine(directory, "Other"));
+        File.WriteAllText(Path.Combine(directory, "Other", "Family.cs"), """
+            using Microsoft.AspNetCore.Components;
+
+            namespace Other;
+
+            public class Family<T> : ComponentBase
+            {
+            }
+            """);
+        File.WriteAllText(Path.Combine(directory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components");
+    }
+
+    public void ThenFamilyDiagnostics(string rule, int count)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        Assert.Equal(count, results.Count(result => result.GetProperty("ruleId").GetString() == rule));
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+        Assert.True((count == 0) == (exitCode == 0), output);
+
+        foreach (var diagnostic in results.Where(result => result.GetProperty("ruleId").GetString() == "BCC001"))
+        {
+            var location = diagnostic.GetProperty("locations")[0].GetProperty("resultFile");
+            Assert.EndsWith("Usage.razor", location.GetProperty("uri").GetString());
+            Assert.Equal(2, location.GetProperty("region").GetProperty("startLine").GetInt32());
+        }
+    }
+
     public void WhenBuild()
     {
-        var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
+        var dotnet = Environment.GetEnvironmentVariable("BCC_CONSUMER_DOTNET") ?? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? throw new InvalidOperationException("DOTNET_HOST_PATH must identify the selected SDK executable.");
         var start = new ProcessStartInfo(dotnet)
         {
@@ -109,12 +182,22 @@ internal sealed class RazorBuildFixture : IDisposable
         };
         start.ArgumentList.Add("build");
         start.ArgumentList.Add("-v:q");
+        start.ArgumentList.Add("--disable-build-servers");
         var packages = Environment.GetEnvironmentVariable("BCC_PACKAGES");
 
         if (packages != null)
         {
             start.ArgumentList.Add("--source");
             start.ArgumentList.Add(packages);
+        }
+
+        start.Environment["DOTNET_HOST_PATH"] = dotnet;
+        start.Environment["DOTNET_ROOT"] = Path.GetDirectoryName(dotnet)!;
+        // A file-based verification app can carry its SDK resolver into child processes.
+        foreach (var name in start.Environment.Keys.Where(name => name.StartsWith("MSBUILD", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("DOTNET_MSBUILD_SDK_RESOLVER_", StringComparison.OrdinalIgnoreCase)).ToArray())
+        {
+            start.Environment.Remove(name);
         }
 
         start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";

@@ -33,6 +33,18 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.ThenDeclarationDiagnostics(expected);
     }
 
+    [Given("a family contract allowing {string} with {string} and {string}")]
+    public void GivenFamily(string allowance, string usage, string inheritance)
+    {
+        fixture.GivenFamily(allowance, usage, inheritance);
+    }
+
+    [Then("the family build reports {string} exactly {int} times")]
+    public void ThenFamilyDiagnostics(string rule, int count)
+    {
+        fixture.ThenFamilyDiagnostics(rule, count);
+    }
+
     public void Dispose()
     {
         fixture.Dispose();
