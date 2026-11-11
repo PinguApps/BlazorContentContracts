@@ -127,8 +127,6 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     var allowed = contract.ConstructorArguments[0].Values.Select(value => value.Value).OfType<ITypeSymbol>().ToArray();
                     var value = call.ArgumentList.Arguments[2].Expression;
-                    var content = FragmentBody(value, context.SemanticModel, context.CancellationToken,
-                        new HashSet<ISymbol>(SymbolEqualityComparer.Default));
                     var fallback = ownerLocation ?? Location.Create(file!.Path,
                         new TextSpan(0, 1), source.Lines.GetLinePositionSpan(new TextSpan(0, 1)));
                     var reportedUnknown = false;
@@ -141,19 +139,51 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
                     var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
 
+                    var activeWrappers = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
                     if (CheckForwardedContract(value, context.SemanticModel))
                     {
                         continue;
                     }
 
-                    if (content == null)
-                    {
-                        ReportUnknown("the fragment value or method result is opaque; annotate the source parameter with AllowedChildren or supply an inline fragment", value, componentUsage: true);
-                        continue;
-                    }
+                    ValidateValue(value, context.SemanticModel, new Dictionary<string, FragmentInput>(), "", null);
 
-                    var activeWrappers = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-                    Validate(content, context.SemanticModel, new Dictionary<string, FragmentInput>(), "", null);
+                    void ValidateValue(ExpressionSyntax expression, SemanticModel semantic, Dictionary<string, FragmentInput> inputs, string path, Location? usage)
+                    {
+                        foreach (var candidate in FragmentSources.Resolve(expression, semantic, context.CancellationToken))
+                        {
+                            if (candidate == null)
+                            {
+                                ReportUnknown("fragment assignment, alias or method result is unestablished; inline the output or declare a source contract", expression, componentUsage: true);
+                                continue;
+                            }
+
+#pragma warning disable RS1030
+                            var candidateModel = semantic.Compilation.GetSemanticModel(candidate.SyntaxTree);
+#pragma warning restore RS1030
+                            if (candidateModel.GetConstantValue(candidate, context.CancellationToken) is { HasValue: true, Value: null })
+                            {
+                                continue;
+                            }
+
+                            if (CheckForwardedContract(candidate, candidateModel))
+                            {
+                                continue;
+                            }
+
+                            var body = FragmentBody(candidate, candidateModel, context.CancellationToken,
+                                new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+
+                            if (body != null)
+                            {
+                                Validate(body, candidateModel, inputs, path, usage);
+                            }
+                            else
+                            {
+                                ReportUnknown("fragment body is unsupported; use an inspectable builder block", candidate);
+                            }
+                        }
+                    }
 
                     void Validate(BlockSyntax body, SemanticModel model, Dictionary<string, FragmentInput> inputs, string path, Location? usage)
                     {
@@ -162,6 +192,9 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         foreach (var child in calls)
                         {
+#pragma warning disable RS1030
+                            model = model.Compilation.GetSemanticModel(child.SyntaxTree);
+#pragma warning restore RS1030
                             outputLocation = usage ?? fallback;
                             outputPath = path;
 
@@ -281,19 +314,9 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                             {
                                                 if (forwardedName.Value is string forwardedParameter && arguments.TryGetValue(forwardedParameter, out var input))
                                                 {
-                                                    var forwardedBody = FragmentBody(input.Expression, input.Model, context.CancellationToken,
-                                                        new HashSet<ISymbol>(SymbolEqualityComparer.Default));
-
                                                     if (!CheckForwardedContract(input.Expression, input.Model))
                                                     {
-                                                        if (forwardedBody != null)
-                                                        {
-                                                            Validate(forwardedBody, input.Model, input.Inputs, nextPath + "." + forwardedParameter, consumer);
-                                                        }
-                                                        else
-                                                        {
-                                                            ReportUnknown("declared forwarded output is opaque", input.Expression);
-                                                        }
+                                                        ValidateValue(input.Expression, input.Model, input.Inputs, nextPath + "." + forwardedParameter, consumer);
                                                     }
                                                 }
                                             }
@@ -404,17 +427,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                             continue;
                                         }
 
-                                        var fragmentBody = FragmentBody(bound.Expression, bound.Model, context.CancellationToken,
-                                            new HashSet<ISymbol>(SymbolEqualityComparer.Default));
-
-                                        if (fragmentBody != null)
-                                        {
-                                            Validate(fragmentBody, bound.Model, bound.Inputs, path + "." + property.Name, usage);
-                                        }
-                                        else
-                                        {
-                                            ReportUnknown("forwarded template '" + property.Name + "' is opaque; annotate its source parameter with AllowedChildren or supply an inline fragment", child);
-                                        }
+                                        ValidateValue(bound.Expression, bound.Model, bound.Inputs, path + "." + property.Name, usage);
                                     }
                                     else if (path.Length == 0 || !property.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == "Microsoft.AspNetCore.Components.ParameterAttribute")
                                         || property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(context.CancellationToken) is PropertyDeclarationSyntax declaration
@@ -481,6 +494,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         }
 
                         CheckDeclaredContract(forwarded, symbol);
+
                         return true;
                     }
 
@@ -651,15 +665,38 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 if (IsBuilderCall(call, "AddContent", model, cancellation) && call.ArgumentList.Arguments.Count >= 2)
                 {
                     var expression = call.ArgumentList.Arguments[1].Expression;
-                    var body = FragmentBody(expression, model, cancellation, new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+                    var expanded = false;
+                    var uncertain = false;
 
-                    if (body != null)
+                    foreach (var candidate in FragmentSources.Resolve(expression, model, cancellation))
                     {
-                        foreach (var emitted in ContentCalls(body, model, cancellation, active))
+                        if (candidate == null)
+                        {
+                            uncertain = true;
+                            continue;
+                        }
+
+#pragma warning disable RS1030
+                        var semantic = model.Compilation.GetSemanticModel(candidate.SyntaxTree);
+#pragma warning restore RS1030
+                        var body = FragmentBody(candidate, semantic, cancellation, new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+
+                        if (body == null)
+                        {
+                            uncertain = true;
+                            continue;
+                        }
+
+                        expanded = true;
+
+                        foreach (var emitted in ContentCalls(body, semantic, cancellation, active))
                         {
                             yield return emitted;
                         }
+                    }
 
+                    if (expanded && !uncertain)
+                    {
                         continue;
                     }
                 }
@@ -724,7 +761,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static AttributeData? Contract(INamedTypeSymbol type, string parameter, Compilation compilation)
+    internal static AttributeData? Contract(INamedTypeSymbol type, string parameter, Compilation compilation)
     {
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
 

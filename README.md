@@ -121,7 +121,7 @@ activation remain separate release work.
 | BCC007 | Warning | Malformed package suppression comment; specify `next`, BCC004 or BCC006, and a reason. |
 | BCC008 | Warning | Unused suppression; remove it or move it immediately before the intended usage. |
 | BCC009 | Error | Declared output or forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
-| BCC010 | Error | Known implementation output contradicts its ProducesContent declaration. |
+| BCC010 | Error | Known implementation output or storage write contradicts its ProducesContent or AllowedChildren declaration. |
 | BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
 
 Unknown output does not hide definite violations in siblings or other branches.
@@ -195,3 +195,19 @@ contract: derived component families, open/closed generics, HTML names and text 
 compared without executing fragment code. Callers are checked at the source parameter.
 Conflicting redeclarations report BCC003 and retain the base restriction. Opaque
 unannotated forwarding reports BCC006; annotate its source or supply inline content.
+
+## Bounded fragment assignment analysis
+
+Restricted Razor slots inspect fragment locals, private fields and properties,
+including initializers, ordinary/coalescing assignments, `+=`, delegate `+`,
+conditional values and inspectable method/getter returns. Typed fragments use the
+same rules. Lifecycle and event methods contribute every possible write; this is
+an order-independent may-write analysis, so an overwritten invalid value can still
+be reported. Local aliases carry known output and uncertainty together.
+
+Opaque service results, captured delegate-factory output, ref/out mutation, delegate removal, externally writable
+storage, custom setters and recursive/unavailable sources remain unknown (BCC006,
+or BCC011 when checking a declared output implementation). The analyzer does not
+execute lifecycle methods or prove runtime ordering, object identity or arbitrary
+alias mutation. Known violations remain errors alongside uncertainty. Compiled
+output and annotated parameter contracts retain their declared call-site promises.
