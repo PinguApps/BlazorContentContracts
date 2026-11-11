@@ -46,7 +46,8 @@ The four `forwarding` providers are active on both supported identities: their s
 `ChildContent` is checked against the receiving contract without adding HTML output.
 `FormMappingScope` has a typed `RenderFragment<FormMappingContext>` slot; the other
 three providers have plain `RenderFragment` slots. Nested providers retain the same
-receiving contract. AuthorizeView alternatives are also active: every supplied `Authorized` (or its
+receiving contract. AuthorizeView alternatives are also active: every supplied
+`Authorized` (or its
 alternative `ChildContent`), `NotAuthorized` and `Authorizing` fragment is checked,
 regardless of the current authentication state. Omitted fragments emit nothing.
 `Authorized` and `ChildContent` must not both be supplied: the framework rejects
