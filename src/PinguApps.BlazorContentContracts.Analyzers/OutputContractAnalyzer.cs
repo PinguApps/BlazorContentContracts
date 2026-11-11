@@ -182,6 +182,20 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                         Inspect(cast.Expression, semantic, false);
                         break;
                     case LambdaExpressionSyntax lambda:
+                        var delegateType = semantic.GetTypeInfo(lambda, context.CancellationToken).ConvertedType as INamedTypeSymbol;
+
+                        if (lambda.Body is BlockSyntax resultBody && delegateType?.DelegateInvokeMethod?.ReturnsVoid == false)
+                        {
+                            foreach (var returned in resultBody.DescendantNodes().OfType<ReturnStatementSyntax>()
+                                .Where(result => !result.Ancestors().TakeWhile(parent => parent != resultBody)
+                                    .Any(parent => parent is LambdaExpressionSyntax or LocalFunctionStatementSyntax)))
+                            {
+                                Inspect(returned.Expression, semantic, false);
+                            }
+
+                            break;
+                        }
+
                         Inspect(lambda.Body, semantic, lambda.Body is BlockSyntax
                             || lambda.Body is InvocationExpressionSyntax invocation
                                 && semantic.GetSymbolInfo(invocation, context.CancellationToken).Symbol is IMethodSymbol emitted

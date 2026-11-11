@@ -40,8 +40,29 @@ internal sealed class RazorBuildFixture : IDisposable
               </ItemGroup>
             </Project>
             """);
-        File.WriteAllText(Path.Combine(library, "LibraryFactory.cs"), "using Microsoft.AspNetCore.Components; using PinguApps.BlazorContentContracts; public static class LibraryFactory { [ProducesContent(" + permission + ")] public static RenderFragment Create() => throw new System.Exception(); }");
-        File.WriteAllText(Path.Combine(library, "PublishedWrapper.cs"), "using Microsoft.AspNetCore.Components; using PinguApps.BlazorContentContracts; [ProducesContent(" + permission + ")] public class PublishedWrapper : ComponentBase { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) => throw new System.Exception(); }");
+        File.WriteAllText(Path.Combine(library, "LibraryFactory.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public static class LibraryFactory
+            {
+                [ProducesContent({{permission}})]
+                public static RenderFragment Create() => throw new System.Exception();
+            }
+            """);
+        File.WriteAllText(Path.Combine(library, "PublishedWrapper.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            [ProducesContent({{permission}})]
+            public class PublishedWrapper : ComponentBase
+            {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    throw new System.Exception();
+                }
+            }
+            """);
         var project = Path.Combine(directory, "Consumer.csproj");
         File.WriteAllText(project, File.ReadAllText(project).Replace("</Project>", "<ItemGroup><Compile Remove=\"Library/**/*.cs\" /><ProjectReference Include=\"Library/Library.csproj\" /></ItemGroup></Project>", StringComparison.Ordinal));
     }
@@ -49,7 +70,21 @@ internal sealed class RazorBuildFixture : IDisposable
     public void GivenOutputSuppression(string body)
     {
         GivenComposition("<Slot>@Factory.Create() @Factory.Create()</Slot>");
-        File.WriteAllText(Path.Combine(directory, "Factory.cs"), "using Microsoft.AspNetCore.Components; using PinguApps.BlazorContentContracts; public static class Factory\n{\n#pragma warning disable BCC011\n[ProducesContent(typeof(Good))]\npublic static RenderFragment Create() => builder => { " + body + " };\n#pragma warning restore BCC011\n}\n");
+        File.WriteAllText(Path.Combine(directory, "Factory.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public static class Factory
+            {
+            #pragma warning disable BCC011
+                [ProducesContent(typeof(Good))]
+                public static RenderFragment Create() => builder =>
+                {
+                    {{body}}
+                };
+            #pragma warning restore BCC011
+            }
+            """);
     }
 
     public void GivenComponentOutput(string markup)
@@ -58,8 +93,26 @@ internal sealed class RazorBuildFixture : IDisposable
 
         if (markup == "inherited")
         {
-            File.WriteAllText(Path.Combine(directory, "BaseWrapper.cs"), "using Microsoft.AspNetCore.Components; public class BaseWrapper : ComponentBase { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { builder.AddContent(0, \"forbidden\"); } }");
-            File.WriteAllText(Path.Combine(directory, "Wrapper.cs"), "using PinguApps.BlazorContentContracts; [ProducesContent(typeof(Good))] public class Wrapper : BaseWrapper { }");
+            File.WriteAllText(Path.Combine(directory, "BaseWrapper.cs"), """
+                using Microsoft.AspNetCore.Components;
+
+                public class BaseWrapper : ComponentBase
+                {
+                    protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                    {
+                        builder.AddContent(0, "forbidden");
+                    }
+                }
+                """);
+            File.WriteAllText(Path.Combine(directory, "Wrapper.cs"), """
+                using PinguApps.BlazorContentContracts;
+
+                [ProducesContent(typeof(Good))]
+                public class Wrapper : BaseWrapper
+                {
+                }
+                """);
+
             return;
         }
 

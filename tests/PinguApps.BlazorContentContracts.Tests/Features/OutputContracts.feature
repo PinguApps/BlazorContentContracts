@@ -11,6 +11,7 @@ Feature: Declared output is checked once at its implementation
             | builder => { builder.OpenComponent<Bad>(0); builder.CloseComponent(); } | @Factory() | BCC010 | 1 |
             | System.Activator.CreateInstance<RenderFragment>() | @Factory() @Factory() | BCC011 | 1 |
             | context => builder => { builder.OpenComponent<Good>(0); builder.CloseComponent(); } | @Factory()(1) | BCC011 | 0 |
+            | context => { return builder => { builder.OpenComponent<Bad>(0); builder.CloseComponent(); }; } | @Factory()(1) | BCC010 | 1 |
             | builder => { builder.OpenElement(0, "span"); builder.CloseElement(); } | @Factory() | BCC010 | 1 |
 
     Scenario Outline: Trust compatible declarations from real referenced assemblies
