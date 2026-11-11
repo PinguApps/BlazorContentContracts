@@ -11,180 +11,199 @@ internal static class FragmentSources
 {
     // A null entry preserves uncertainty alongside any known output.
     internal static IEnumerable<ExpressionSyntax?> Resolve(ExpressionSyntax expression, SemanticModel model,
-        CancellationToken cancellation, HashSet<ISymbol>? active = null)
+        CancellationToken cancellation, HashSet<ISymbol>? active = null, AnalysisTraversal? traversal = null)
     {
         cancellation.ThrowIfCancellationRequested();
         active ??= new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        traversal ??= new AnalysisTraversal(cancellation);
 
-        switch (expression)
-        {
-            case ParenthesizedExpressionSyntax parentheses:
-                return Resolve(parentheses.Expression, model, cancellation, active);
-            case CastExpressionSyntax cast:
-                return Resolve(cast.Expression, model, cancellation, active);
-            case LambdaExpressionSyntax lambda:
-                var delegateType = model.GetTypeInfo(lambda, cancellation).ConvertedType as INamedTypeSymbol;
-                return delegateType?.Name == "RenderFragment"
-                    && delegateType.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components"
-                    ? new[] { expression } : new ExpressionSyntax?[] { null };
-            case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AddExpression):
-                return Resolve(binary.Left, model, cancellation, active).Concat(Resolve(binary.Right, model, cancellation, active)).ToArray();
-            case ConditionalExpressionSyntax conditional:
-                return Resolve(conditional.WhenTrue, model, cancellation, active).Concat(Resolve(conditional.WhenFalse, model, cancellation, active)).ToArray();
-        }
-
-        if (model.GetConstantValue(expression, cancellation) is { HasValue: true, Value: null })
-        {
-            return Enumerable.Empty<ExpressionSyntax?>();
-        }
-
-        var symbol = model.GetSymbolInfo(expression, cancellation).Symbol;
-
-        if ((OutputContractAnalyzer.OutputContract(symbol, model.Compilation) != null
-            || symbol is IPropertySymbol propertyContract && propertyContract.GetAttributes()
-                .Any(attribute => attribute.AttributeClass?.ToDisplayString() == "PinguApps.BlazorContentContracts.AllowedChildrenAttribute")))
-        {
-            return new[] { expression };
-        }
-
-        if (symbol is IMethodSymbol { MethodKind: MethodKind.DelegateInvoke } && expression is InvocationExpressionSyntax invocation)
-        {
-            return Resolve(invocation.Expression, model, cancellation, active);
-        }
-
-        if (symbol is not (ILocalSymbol or IFieldSymbol or IPropertySymbol or IMethodSymbol) || !active.Add(symbol) || active.Count > 64)
+        if (!traversal.Enter(expression, expression.ToString()))
         {
             return new ExpressionSyntax?[] { null };
         }
 
-        var values = new List<ExpressionSyntax?>();
-
-        foreach (var reference in symbol.DeclaringSyntaxReferences)
+        try
         {
-            var declaration = reference.GetSyntax(cancellation);
-
-            switch (declaration)
+            switch (expression)
             {
-                case VariableDeclaratorSyntax { Initializer: not null } variable:
-                    Add(variable.Initializer.Value);
-                    break;
-                case PropertyDeclarationSyntax property:
-                    if (property.Initializer != null)
-                    {
-                        Add(property.Initializer.Value);
-                    }
+                case ParenthesizedExpressionSyntax parentheses:
+                    return Resolve(parentheses.Expression, model, cancellation, active, traversal);
+                case CastExpressionSyntax cast:
+                    return Resolve(cast.Expression, model, cancellation, active, traversal);
+                case LambdaExpressionSyntax lambda:
+                    var delegateType = model.GetTypeInfo(lambda, cancellation).ConvertedType as INamedTypeSymbol;
+                    return delegateType?.Name == "RenderFragment"
+                        && delegateType.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components"
+                        ? new[] { expression } : new ExpressionSyntax?[] { null };
+                case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AddExpression):
+                    return Resolve(binary.Left, model, cancellation, active, traversal).Concat(Resolve(binary.Right, model, cancellation, active, traversal)).ToArray();
+                case ConditionalExpressionSyntax conditional:
+                    return Resolve(conditional.WhenTrue, model, cancellation, active, traversal).Concat(Resolve(conditional.WhenFalse, model, cancellation, active, traversal)).ToArray();
+            }
 
-                    if (property.ExpressionBody != null)
-                    {
-                        Add(property.ExpressionBody.Expression);
-                    }
+            if (model.GetConstantValue(expression, cancellation) is { HasValue: true, Value: null })
+            {
+                return Enumerable.Empty<ExpressionSyntax?>();
+            }
 
-                    foreach (var getter in property.AccessorList?.Accessors.Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
-                        ?? Enumerable.Empty<AccessorDeclarationSyntax>())
-                    {
-                        if (getter.ExpressionBody != null)
+            var symbol = model.GetSymbolInfo(expression, cancellation).Symbol;
+
+            if ((OutputContractAnalyzer.OutputContract(symbol, model.Compilation) != null
+                || symbol is IPropertySymbol propertyContract && propertyContract.GetAttributes()
+                    .Any(attribute => attribute.AttributeClass?.ToDisplayString() == "PinguApps.BlazorContentContracts.AllowedChildrenAttribute")))
+            {
+                return new[] { expression };
+            }
+
+            if (symbol is IMethodSymbol { MethodKind: MethodKind.DelegateInvoke } && expression is InvocationExpressionSyntax invocation)
+            {
+                return Resolve(invocation.Expression, model, cancellation, active, traversal);
+            }
+
+            if (symbol != null && active.Contains(symbol))
+            {
+                traversal.Cycle(string.Join(" -> ", active.Select(item => item.Name)) + " -> " + symbol.Name);
+                return new ExpressionSyntax?[] { null };
+            }
+
+            if (symbol is not (ILocalSymbol or IFieldSymbol or IPropertySymbol or IMethodSymbol) || !active.Add(symbol))
+            {
+                return new ExpressionSyntax?[] { null };
+            }
+
+            var values = new List<ExpressionSyntax?>();
+
+            foreach (var reference in symbol.DeclaringSyntaxReferences)
+            {
+                var declaration = reference.GetSyntax(cancellation);
+
+                switch (declaration)
+                {
+                    case VariableDeclaratorSyntax { Initializer: not null } variable:
+                        Add(variable.Initializer.Value);
+                        break;
+                    case PropertyDeclarationSyntax property:
+                        if (property.Initializer != null)
                         {
-                            Add(getter.ExpressionBody.Expression);
+                            Add(property.Initializer.Value);
                         }
 
-                        Returns(getter.Body);
-                    }
+                        if (property.ExpressionBody != null)
+                        {
+                            Add(property.ExpressionBody.Expression);
+                        }
 
-                    break;
-                case MethodDeclarationSyntax method:
-                    if (method.ExpressionBody != null)
-                    {
-                        Add(method.ExpressionBody.Expression);
-                    }
+                        foreach (var getter in property.AccessorList?.Accessors.Where(accessor => accessor.IsKind(SyntaxKind.GetAccessorDeclaration))
+                            ?? Enumerable.Empty<AccessorDeclarationSyntax>())
+                        {
+                            if (getter.ExpressionBody != null)
+                            {
+                                Add(getter.ExpressionBody.Expression);
+                            }
 
-                    Returns(method.Body);
-                    break;
+                            Returns(getter.Body);
+                        }
+
+                        break;
+                    case MethodDeclarationSyntax method:
+                        if (method.ExpressionBody != null)
+                        {
+                            Add(method.ExpressionBody.Expression);
+                        }
+
+                        Returns(method.Body);
+                        break;
+                }
             }
-        }
 
-        if (symbol is not IMethodSymbol)
-        {
-            // Whole-compilation may-write analysis deliberately ignores execution order.
-            foreach (var tree in model.Compilation.SyntaxTrees)
+            if (symbol is not IMethodSymbol)
             {
+                // Whole-compilation may-write analysis deliberately ignores execution order.
+                foreach (var tree in model.Compilation.SyntaxTrees)
+                {
 #pragma warning disable RS1030
-                var semantic = model.Compilation.GetSemanticModel(tree);
+                    var semantic = model.Compilation.GetSemanticModel(tree);
 #pragma warning restore RS1030
 
-                foreach (var assignment in tree.GetRoot(cancellation).DescendantNodes().OfType<AssignmentExpressionSyntax>())
-                {
-                    cancellation.ThrowIfCancellationRequested();
-
-                    if (!SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(assignment.Left, cancellation).Symbol, symbol))
+                    foreach (var assignment in tree.GetRoot(cancellation).DescendantNodes().OfType<AssignmentExpressionSyntax>())
                     {
-                        continue;
+                        cancellation.ThrowIfCancellationRequested();
+
+                        if (!SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(assignment.Left, cancellation).Symbol, symbol))
+                        {
+                            continue;
+                        }
+
+                        if (assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) || assignment.IsKind(SyntaxKind.AddAssignmentExpression)
+                            || assignment.IsKind(SyntaxKind.CoalesceAssignmentExpression))
+                        {
+                            Add(assignment.Right);
+                        }
+                        else
+                        {
+                            values.Add(null);
+                        }
                     }
 
-                    if (assignment.IsKind(SyntaxKind.SimpleAssignmentExpression) || assignment.IsKind(SyntaxKind.AddAssignmentExpression)
-                        || assignment.IsKind(SyntaxKind.CoalesceAssignmentExpression))
+                    foreach (var alias in tree.GetRoot(cancellation).DescendantNodes().OfType<RefExpressionSyntax>())
                     {
-                        Add(assignment.Right);
+                        if (SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(alias.Expression, cancellation).Symbol, symbol))
+                        {
+                            values.Add(null);
+                        }
                     }
-                    else
+
+                    foreach (var argument in tree.GetRoot(cancellation).DescendantNodes().OfType<ArgumentSyntax>())
                     {
-                        values.Add(null);
+                        if (argument.RefKindKeyword.RawKind != 0
+                            && SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(argument.Expression, cancellation).Symbol, symbol))
+                        {
+                            values.Add(null);
+                        }
                     }
                 }
 
-                foreach (var alias in tree.GetRoot(cancellation).DescendantNodes().OfType<RefExpressionSyntax>())
+                if ((symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.Protected
+                    || symbol is IPropertySymbol { SetMethod: not null } propertySymbol
+                        && propertySymbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(cancellation) is PropertyDeclarationSyntax property
+                            && property.AccessorList?.Accessors.Any(accessor => accessor.Body != null || accessor.ExpressionBody != null) == true)))
                 {
-                    if (SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(alias.Expression, cancellation).Symbol, symbol))
-                    {
-                        values.Add(null);
-                    }
-                }
-
-                foreach (var argument in tree.GetRoot(cancellation).DescendantNodes().OfType<ArgumentSyntax>())
-                {
-                    if (argument.RefKindKeyword.RawKind != 0
-                        && SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(argument.Expression, cancellation).Symbol, symbol))
-                    {
-                        values.Add(null);
-                    }
+                    values.Add(null);
                 }
             }
 
-            if ((symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.Protected
-                || symbol is IPropertySymbol { SetMethod: not null } propertySymbol
-                    && propertySymbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(cancellation) is PropertyDeclarationSyntax property
-                        && property.AccessorList?.Accessors.Any(accessor => accessor.Body != null || accessor.ExpressionBody != null) == true)))
+            active.Remove(symbol);
+            return values.Count == 0 ? new ExpressionSyntax?[] { null } : values;
+
+            void Add(ExpressionSyntax value)
             {
-                values.Add(null);
-            }
-        }
-
-        active.Remove(symbol);
-        return values.Count == 0 ? new ExpressionSyntax?[] { null } : values;
-
-        void Add(ExpressionSyntax value)
-        {
 #pragma warning disable RS1030
-            var semantic = model.Compilation.GetSemanticModel(value.SyntaxTree);
+                var semantic = model.Compilation.GetSemanticModel(value.SyntaxTree);
 #pragma warning restore RS1030
-            values.AddRange(Resolve(value, semantic, cancellation, active));
-        }
-
-        void Returns(BlockSyntax? body)
-        {
-            if (body == null)
-            {
-                return;
+                values.AddRange(Resolve(value, semantic, cancellation, active, traversal));
             }
 
-            foreach (var returned in body.DescendantNodes().OfType<ReturnStatementSyntax>()
-                .Where(result => !result.Ancestors().TakeWhile(parent => parent != body)
-                    .Any(parent => parent is LambdaExpressionSyntax or LocalFunctionStatementSyntax)))
+            void Returns(BlockSyntax? body)
             {
-                if (returned.Expression != null)
+                if (body == null)
                 {
-                    Add(returned.Expression);
+                    return;
+                }
+
+                foreach (var returned in body.DescendantNodes().OfType<ReturnStatementSyntax>()
+                    .Where(result => !result.Ancestors().TakeWhile(parent => parent != body)
+                        .Any(parent => parent is LambdaExpressionSyntax or LocalFunctionStatementSyntax)))
+                {
+                    if (returned.Expression != null)
+                    {
+                        Add(returned.Expression);
+                    }
                 }
             }
+        }
+        finally
+        {
+            traversal.Exit();
         }
     }
 }

@@ -20,7 +20,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
         "BCC011", "Unresolved declared output", "Output of '{0}' cannot be verified: {1}",
         "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Invalid, Unknown);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Invalid, Unknown, ContentContractAnalyzer.RecursiveOutput, ContentContractAnalyzer.AnalysisLimit);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -129,7 +129,8 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
         var names = html.Kind == TypedConstantKind.Array && !html.IsNull
             ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
         var text = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
-        var active = new HashSet<SyntaxNode>();
+        var reportedBounds = new HashSet<string>();
+        var traversal = new AnalysisTraversal(context.CancellationToken, ReportBound);
         var unknown = false;
 #pragma warning disable RS1030
         var model = context.Compilation.GetSemanticModel(declaration.SyntaxTree);
@@ -211,6 +212,17 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             }
         }
 
+        void ReportBound(bool recursive, string detail)
+        {
+            var rule = recursive ? ContentContractAnalyzer.RecursiveOutput : ContentContractAnalyzer.AnalysisLimit;
+
+            if (reportedBounds.Add(rule.Id))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(rule, declaration.GetLocation(), method.ContainingType.Name, method.Name,
+                    recursive ? detail : "maximum depth " + AnalysisTraversal.MaximumDepth + " or expansion work " + AnalysisTraversal.MaximumWork + " exceeded (" + detail + ")"));
+            }
+        }
+
         void Report(bool invalid, string reason)
         {
             if (!invalid && unknown)
@@ -228,9 +240,14 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            if (node == null || !active.Add(node))
+            if (node == null)
             {
-                Report(false, "implementation is unavailable or recursive");
+                Report(false, "implementation is unavailable");
+                return;
+            }
+
+            if (!traversal.Enter(node, method.Name + " -> " + node.Kind()))
+            {
                 return;
             }
 
@@ -328,7 +345,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
                         if (symbol is ILocalSymbol or IFieldSymbol or IPropertySymbol)
                         {
-                            foreach (var candidate in FragmentSources.Resolve((ExpressionSyntax)node, semantic, context.CancellationToken))
+                            foreach (var candidate in FragmentSources.Resolve((ExpressionSyntax)node, semantic, context.CancellationToken, traversal: traversal.Fork()))
                             {
                                 if (candidate == null)
                                 {
@@ -479,7 +496,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                 }
             }
 
-            active.Remove(node);
+            traversal.Exit();
         }
 
         void CheckPermissions(AttributeData produced)

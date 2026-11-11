@@ -57,6 +57,18 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.GivenWrapper(output, usage);
     }
 
+    [Given("bounded output containing a {string}")]
+    public void GivenBoundedOutput(string kind)
+    {
+        fixture.GivenBoundedOutput(kind);
+    }
+
+    [Then("bounded analysis reports {string} and preserves the invalid sibling")]
+    public void ThenBoundedOutput(string rule)
+    {
+        fixture.ThenBoundedOutput(rule);
+    }
+
     [Then("the wrapper violation names its path at the consumer")]
     public void ThenWrapperPath()
     {
