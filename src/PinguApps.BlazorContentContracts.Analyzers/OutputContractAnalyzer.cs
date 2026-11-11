@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -13,7 +14,7 @@ namespace PinguApps.BlazorContentContracts.Analyzers;
 public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor Invalid = new(
-        "BCC010", "Output contradicts declaration", "Output of '{0}' contradicts its ProducesContent contract: {1}",
+        "BCC010", "Output contradicts declaration", "Output of '{0}' contradicts its content contract: {1}",
         "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
     private static readonly DiagnosticDescriptor Unknown = new(
         "BCC011", "Unresolved declared output", "Output of '{0}' cannot be verified: {1}",
@@ -25,7 +26,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(Analyze, SymbolKind.Method, SymbolKind.NamedType);
+        context.RegisterSymbolAction(Analyze, SymbolKind.Method, SymbolKind.NamedType, SymbolKind.Property);
     }
 
     internal static AttributeData? OutputContract(ISymbol? symbol, Compilation compilation, string attributeName = "ProducesContentAttribute")
@@ -57,7 +58,8 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
     private static void Analyze(SymbolAnalysisContext context)
     {
         var owner = context.Symbol as INamedTypeSymbol;
-        var method = context.Symbol as IMethodSymbol;
+        var storage = context.Symbol as IPropertySymbol;
+        var method = context.Symbol as IMethodSymbol ?? storage?.GetMethod;
 
         if (owner != null)
         {
@@ -94,7 +96,9 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var contract = OutputContract(method, context.Compilation);
+        var contract = storage == null ? OutputContract(method, context.Compilation)
+            : storage.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString()
+                == "PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
         var component = owner != null || method.Name == "BuildRenderTree" && method.IsOverride;
 
         if (component)
@@ -107,7 +111,9 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var declaration = method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as MethodDeclarationSyntax;
+        var declaration = storage?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken)
+            ?? method.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken);
+        var methodDeclaration = declaration as MethodDeclarationSyntax;
 
         if (declaration == null)
         {
@@ -130,18 +136,76 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
         var model = context.Compilation.GetSemanticModel(declaration.SyntaxTree);
 #pragma warning restore RS1030
 
-        if (component)
+        if (storage != null)
         {
-            Inspect(declaration.Body ?? (SyntaxNode?)declaration.ExpressionBody, model, true);
+            if (declaration is PropertyDeclarationSyntax { Initializer: not null } property)
+            {
+                Inspect(property.Initializer.Value, model, false);
+            }
+
+            if (declaration is PropertyDeclarationSyntax declaredProperty)
+            {
+                if (declaredProperty.ExpressionBody != null)
+                {
+                    Inspect(declaredProperty.ExpressionBody.Expression, model, false);
+                }
+
+                foreach (var getter in declaredProperty.AccessorList?.Accessors.Where(accessor => accessor.Keyword.ValueText == "get")
+                    ?? Enumerable.Empty<AccessorDeclarationSyntax>())
+                {
+                    if (getter.ExpressionBody != null)
+                    {
+                        Inspect(getter.ExpressionBody.Expression, model, false);
+                    }
+
+                    if (getter.Body != null)
+                    {
+                        foreach (var returned in getter.Body.DescendantNodes().OfType<ReturnStatementSyntax>()
+                            .Where(result => !result.Ancestors().TakeWhile(parent => parent != getter.Body)
+                                .Any(parent => parent is LambdaExpressionSyntax or LocalFunctionStatementSyntax)))
+                        {
+                            Inspect(returned.Expression, model, false);
+                        }
+                    }
+                }
+            }
+
+            foreach (var tree in context.Compilation.SyntaxTrees)
+            {
+#pragma warning disable RS1030
+                var semantic = context.Compilation.GetSemanticModel(tree);
+#pragma warning restore RS1030
+
+                foreach (var assignment in tree.GetRoot(context.CancellationToken).DescendantNodes().OfType<AssignmentExpressionSyntax>())
+                {
+                    if (SymbolEqualityComparer.Default.Equals(semantic.GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol, storage))
+                    {
+                        if (assignment.Kind() is Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleAssignmentExpression
+                            or Microsoft.CodeAnalysis.CSharp.SyntaxKind.AddAssignmentExpression
+                            or Microsoft.CodeAnalysis.CSharp.SyntaxKind.CoalesceAssignmentExpression)
+                        {
+                            Inspect(assignment.Right, semantic, false);
+                        }
+                        else
+                        {
+                            Report(false, "contracted storage mutation is unsupported");
+                        }
+                    }
+                }
+            }
         }
-        else if (declaration.ExpressionBody != null)
+        else if (component)
         {
-            Inspect(declaration.ExpressionBody.Expression, model, false);
+            Inspect(methodDeclaration!.Body ?? (SyntaxNode?)methodDeclaration.ExpressionBody, model, true);
         }
-        else if (declaration.Body != null)
+        else if (methodDeclaration?.ExpressionBody != null)
         {
-            foreach (var result in declaration.Body.DescendantNodes().OfType<ReturnStatementSyntax>()
-                .Where(result => !result.Ancestors().TakeWhile(node => node != declaration.Body)
+            Inspect(methodDeclaration.ExpressionBody.Expression, model, false);
+        }
+        else if (methodDeclaration?.Body != null)
+        {
+            foreach (var result in methodDeclaration.Body.DescendantNodes().OfType<ReturnStatementSyntax>()
+                .Where(result => !result.Ancestors().TakeWhile(node => node != methodDeclaration.Body)
                     .Any(node => node is LambdaExpressionSyntax or LocalFunctionStatementSyntax)))
             {
                 Inspect(result.Expression, model, false);
@@ -158,7 +222,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             unknown |= !invalid;
             context.ReportDiagnostic(Diagnostic.Create(invalid ? Invalid : Unknown,
                 component ? contract.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation()
-                    ?? declaration.Identifier.GetLocation() : declaration.Identifier.GetLocation(), method.ToDisplayString(), reason));
+                    ?? declaration.GetLocation() : declaration.GetLocation(), method.ToDisplayString(), reason));
         }
 
         void Inspect(SyntaxNode? node, SemanticModel semantic, bool builder)
@@ -200,6 +264,10 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                             || lambda.Body is InvocationExpressionSyntax invocation
                                 && semantic.GetSymbolInfo(invocation, context.CancellationToken).Symbol is IMethodSymbol emitted
                                 && emitted.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder");
+                        break;
+                    case BinaryExpressionSyntax binary when binary.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.AddExpression):
+                        Inspect(binary.Left, semantic, false);
+                        Inspect(binary.Right, semantic, false);
                         break;
                     case ConditionalExpressionSyntax conditional:
                         Inspect(conditional.WhenTrue, semantic, false);
@@ -256,6 +324,25 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                             && forwarding.ConstructorArguments.Length == 1
                             && forwarding.ConstructorArguments[0].Values.Any(value => value.Value as string == property.Name))
                         {
+                            break;
+                        }
+
+                        if (symbol is ILocalSymbol or IFieldSymbol or IPropertySymbol)
+                        {
+                            foreach (var candidate in FragmentSources.Resolve((ExpressionSyntax)node, semantic, context.CancellationToken))
+                            {
+                                if (candidate == null)
+                                {
+                                    Report(false, "fragment assignment or alias is unestablished");
+                                }
+                                else
+                                {
+#pragma warning disable RS1030
+                                    Inspect(candidate, context.Compilation.GetSemanticModel(candidate.SyntaxTree), false);
+#pragma warning restore RS1030
+                                }
+                            }
+
                             break;
                         }
 
