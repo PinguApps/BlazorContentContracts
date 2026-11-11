@@ -291,7 +291,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
-                                        ReportUnknown("wrapper output is unavailable or unsupported", child);
+                                        ReportUnknown("wrapper source is unavailable and compiled output metadata is missing, incompatible or unsupported; rebuild the library with summaries or declare its output", child);
                                         continue;
                                     }
 
@@ -347,7 +347,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                                         var forwarding = OutputContractAnalyzer.OutputContract(type, model.Compilation, "ForwardsContentAttribute");
 
-                                        if (forwarding != null && forwarding.ConstructorArguments.Length == 1)
+                                        if (forwarding != null && forwarding.ConstructorArguments.Length >= 1)
                                         {
                                             foreach (var forwardedName in forwarding.ConstructorArguments[0].Values)
                                             {
@@ -648,7 +648,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         suppressions.Report(context.ReportDiagnostic);
     }
 
-    private static bool IsFragment(ITypeSymbol type)
+    internal static bool IsFragment(ITypeSymbol type)
     {
         return type is INamedTypeSymbol named && named.Name == "RenderFragment"
             && named.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components";

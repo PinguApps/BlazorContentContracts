@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup Condition="'$(BlazorContentContractsPublishSummaries)' != 'false'">
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(IntermediateOutputPath)bcc-generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="BlazorContentContractsPublishSummaries" />
+  </ItemGroup>
+
+  <Target Name="BlazorContentContractsReadRazor" BeforeTargets="CoreCompile"
+          Condition="'$(BlazorContentContractsSummaryPass)' == 'true'">
+    <WriteLinesToFile File="$(IntermediateOutputPath)bcc-summary-pass.cs" Lines="// Content summary publication pass" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)bcc-summary-pass.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)bcc-summary-pass.cs" />
+      <AdditionalFiles Include="$(CompilerGeneratedFilesOutputPath)/**/*.g.cs"
+                       Exclude="$(CompilerGeneratedFilesOutputPath)/**/CompiledContent.g.cs" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="BlazorContentContractsPublishRazor" AfterTargets="CoreCompile"
+          Condition="'$(BlazorContentContractsPublishSummaries)' != 'false' and '$(BlazorContentContractsSummaryPass)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_BccRazorGenerated Include="$(CompilerGeneratedFilesOutputPath)/**/*_razor.g.cs" />
+    </ItemGroup>
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build"
+             Properties="BlazorContentContractsSummaryPass=true" BuildInParallel="false"
+             Condition="'@(_BccRazorGenerated)' != ''" />
+  </Target>
+</Project>
