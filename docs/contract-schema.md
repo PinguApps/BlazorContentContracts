@@ -164,11 +164,15 @@ Use explicit output contracts for these cases.
 Razor source generators cannot see one another's output. The package's direct
 build targets therefore retain generated C# and perform a second compiler pass
 to publish Razor summaries into the same assembly and reference assembly. This
-adds compiler work to Razor builds. Design-time builds skip this publication
-pass. Set `BlazorContentContractsPublishSummaries=false` to disable generation;
+invokes a full recursive `Build`, so build targets such as post-build events can
+run twice. Design-time builds skip this publication pass; referenced Razor summaries
+reflect the last normal build until rebuilt after an edit.
+Set `BlazorContentContractsPublishSummaries=false` to disable generation;
 existing explicit annotations still survive compilation. Library authors must
 reference the analyzer package directly; automatic transitive activation is a
 separate delivery item. Existing generated-source output paths are preserved.
+When configuring a custom output path, also set `EmitCompilerGeneratedFiles=true`;
+the SDK clears the path during evaluation when emission is disabled.
 
 Consumers read annotations and summaries through Roslyn assembly symbols for
 both project and NuGet references. Summaries must have a unique matching target,

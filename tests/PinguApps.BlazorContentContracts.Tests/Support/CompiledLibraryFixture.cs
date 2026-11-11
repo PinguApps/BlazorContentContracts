@@ -40,14 +40,20 @@ internal sealed class CompiledLibraryFixture : IDisposable
             }
             """);
         File.WriteAllText(Path.Combine(directory, "Menu", "Good.cs"), "public class Good : Microsoft.AspNetCore.Components.ComponentBase\n{\n}\n");
+
+        if (wrapper == "obsolete")
+        {
+            File.WriteAllText(Path.Combine(directory, "Menu", "Good.cs"), "[System.Obsolete(\"Use the replacement component\")]\npublic class Good : Microsoft.AspNetCore.Components.ComponentBase\n{\n}\n");
+        }
+
         File.WriteAllText(Path.Combine(directory, "Menu", "Bad.cs"), "public class Bad : Microsoft.AspNetCore.Components.ComponentBase\n{\n}\n");
         Run("Menu", "pack", "-o", directory);
         Assert.Equal(0, exitCode);
         Project("Wrappers", "<PackageReference Include=\"Menu\" Version=\"1.0.0\" />");
 
-        if (wrapper is "razor" or "generic forwarding" or "typed forwarding" or "invalid forwarding")
+        if (wrapper is "razor" or "custom path" or "generic forwarding" or "typed forwarding" or "invalid forwarding")
         {
-            var generic = wrapper != "razor";
+            var generic = wrapper is not ("razor" or "custom path");
             File.WriteAllText(Path.Combine(directory, "Wrappers", "Wrapper.razor"),
                 "@namespace Published\n@using Microsoft.AspNetCore.Components\n"
                 + (generic ? "@typeparam TItem\n" : "") + "<Good />\n"
@@ -59,6 +65,8 @@ internal sealed class CompiledLibraryFixture : IDisposable
         {
             var body = wrapper is "default forwarding" or "mutated forwarding" ? "builder.AddContent(0, ChildContent);"
                 : wrapper == "unknown" ? "builder.AddContent(0, System.Activator.CreateInstance<RenderFragment>());"
+                : wrapper == "fixed invalid" ? "builder.OpenElement(0, \"span\"); builder.CloseElement();"
+                : wrapper == "mixed" ? "builder.OpenComponent<Widget>(0); builder.CloseComponent();"
                 : "builder.OpenComponent<Good>(0); builder.CloseComponent();";
 
             if (wrapper == "conditional frames")
@@ -83,6 +91,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
                     }
                     """;
             }
+
             var metadata = wrapper == "incompatible"
                 ? "[assembly: PinguApps.BlazorContentContracts.CompiledContent(new System.Type[] { typeof(Good) }, typeof(Published.Wrapper), Version = 99)]\n" : "";
             File.WriteAllText(Path.Combine(directory, "Wrappers", "Wrapper.cs"), $$"""
@@ -90,6 +99,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
                 {{metadata}}
                 namespace Published;
 
+                #pragma warning disable CS0612, CS0618
                 {{(wrapper == "explicit" ? "[PinguApps.BlazorContentContracts.ProducesContent(typeof(Good))]" : "")}}
                 public class Wrapper : ComponentBase
                 {
@@ -111,6 +121,19 @@ internal sealed class CompiledLibraryFixture : IDisposable
             }
         }
 
+        if (wrapper == "mixed")
+        {
+            File.WriteAllText(Path.Combine(directory, "Wrappers", "Widget.razor"), "@namespace Published\n@inherits Good\n");
+        }
+
+        if (wrapper is "obsolete" or "custom path")
+        {
+            var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
+            var properties = wrapper == "obsolete" ? "<TreatWarningsAsErrors>true</TreatWarningsAsErrors><NoWarn>ASP0006</NoWarn>"
+                : "<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles><CompilerGeneratedFilesOutputPath>obj/custom-generated</CompilerGeneratedFilesOutputPath>";
+            File.WriteAllText(project, File.ReadAllText(project).Replace("<PropertyGroup>", "<PropertyGroup>" + properties));
+        }
+
         if (wrapper == "explicit")
         {
             File.WriteAllText(Path.Combine(directory, "Wrappers", "Factory.cs"), """
@@ -129,6 +152,12 @@ internal sealed class CompiledLibraryFixture : IDisposable
 
         Run("Wrappers", "pack", "-o", directory);
         Assert.True(exitCode == 0, output);
+
+        if (wrapper == "custom path")
+        {
+            Assert.True(Directory.EnumerateFiles(Path.Combine(directory, "Wrappers", "obj", "custom-generated"), "CompiledContent.g.cs", SearchOption.AllDirectories).Any());
+        }
+
         Directory.Delete(Path.Combine(directory, "Menu"), recursive: true);
 
         if (wrapper != "project reference")
@@ -183,7 +212,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() is "AD0001" or "CS8785");
         Assert.Equal(kind == "incompatible" ? 1 : 0, results.Count(result => result.GetProperty("ruleId").GetString() == "BCC014"));
         Assert.True(results.Count(result => result.GetProperty("ruleId").GetString() == rule) == count, output);
-        Assert.Equal(rule == "BCC005" ? 1 : 0, exitCode);
+        Assert.Equal(rule is "BCC005" or "BCC009" ? 1 : 0, exitCode);
     }
 
     private void Run(string project, params string[] arguments)

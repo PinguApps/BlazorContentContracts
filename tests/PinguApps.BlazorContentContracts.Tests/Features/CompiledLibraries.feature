@@ -8,6 +8,10 @@ Feature: Contracts survive independent NuGet packages
         Examples:
             | wrapper | rule | count |
             | csharp | BCC006 | 0 |
+            | mixed | BCC006 | 0 |
+            | obsolete | BCC006 | 0 |
+            | custom path | BCC006 | 0 |
+            | fixed invalid | BCC009 | 1 |
             | explicit | BCC006 | 0 |
             | project reference | BCC006 | 0 |
             | razor | BCC006 | 0 |
