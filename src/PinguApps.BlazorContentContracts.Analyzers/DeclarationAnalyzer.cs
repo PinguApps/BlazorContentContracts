@@ -103,9 +103,9 @@ public sealed class DeclarationAnalyzer : DiagnosticAnalyzer
             ? null : "ProducesContent requires an IComponent class or a method returning RenderFragment or RenderFragment<T>";
     }
 
-    private static string? ValidateContent(AttributeData attribute, Compilation compilation)
+    internal static string? ValidateContent(AttributeData attribute, Compilation compilation, bool external = false)
     {
-        if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].IsNull)
+        if (attribute.ConstructorArguments.Length != (external ? 2 : 1) || attribute.ConstructorArguments[0].IsNull)
         {
             return "supply a non-null component type array (use an empty array for no components)";
         }
@@ -131,9 +131,9 @@ public sealed class DeclarationAnalyzer : DiagnosticAnalyzer
         return null;
     }
 
-    private static string? ValidateForwarding(INamedTypeSymbol type, AttributeData attribute, Compilation compilation)
+    internal static string? ValidateForwarding(INamedTypeSymbol type, AttributeData attribute, Compilation compilation, bool external = false)
     {
-        if (attribute.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].IsNull
+        if (attribute.ConstructorArguments.Length != (external ? 2 : 1) || attribute.ConstructorArguments[0].IsNull
             || attribute.ConstructorArguments[0].Values.IsEmpty)
         {
             return "ForwardsContent must name at least one fragment parameter";

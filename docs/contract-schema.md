@@ -1,5 +1,59 @@
 # Content contract metadata schema v1
 
+## Consumer descriptions of external components
+
+Consumers can describe an unmodified referenced component using assembly attributes
+in their own project. Targets are `System.Type` values: `typeof` binds the exact
+symbol and assembly, and misspelled types fail C# compilation. No name-only lookup,
+IL inspection or application execution is used.
+
+```csharp
+using PinguApps.BlazorContentContracts;
+
+[assembly: ExternalContent(new System.Type[0], typeof(Vendor.Panel))]
+[assembly: ExternalForwarding(new[] { nameof(Vendor.Panel.ChildContent) }, typeof(Vendor.Panel))]
+```
+
+`ExternalContentAttribute(Type[] componentTypes, Type target)` describes the union
+of all fixed, alternative and default output. Its `HtmlElements` and `AllowText`
+properties have the same defaults as `ProducesContent`. Nonempty output claims
+require `Trusted = true`. This explicitly acknowledges a consumer promise about
+unavailable implementation; it is not proof or runtime enforcement. An empty
+description claims transparent/empty fixed output. It never exempts forwarded
+descendants: all slots in the companion
+`ExternalForwardingAttribute(string[] parameterNames, Type target)` are checked
+against the receiving contract, including typed and inherited parameter slots.
+Missing supplied slots contribute no caller output; include any library defaults
+in the fixed output union, even if some usages replace them. This deliberately
+conservative union may reject a usage whose runtime branch would be safe.
+
+```csharp
+[assembly: ExternalContent(new System.Type[0], typeof(Vendor.Panel),
+    HtmlElements = new[] { "div" }, Trusted = true)]
+```
+
+Only the current consumer assembly's descriptions apply; referenced libraries
+cannot install consumer overrides transitively. The target must be a referenced
+component class. Closed generic constructions describe only that construction;
+unbound definitions describe every construction of that exact definition. Mappings
+never apply to derived types, so derived rendering overrides cannot inherit a
+transparency claim. Explicitly permitted components still remain terminal boundaries.
+
+Precedence is deterministic: a local external mapping replaces the complete
+author-declared or generated output/forwarding pair for that exact target. Its
+omitted forwarding means no forwarding; sources are never mixed. Invalid mappings
+are not consumed. `BCC015` diagnoses malformed types/HTML, missing trust, unknown
+or duplicate slots, duplicate mappings and overlapping open/closed generic mappings.
+Remove overlaps rather than relying on source order. Forwarding requires one
+`ExternalContent` declaration with the identical target, including generic arguments.
+An open target cannot pair with a closed forwarding target. A target/type typo produces the normal
+C# compiler error. New diagnostics are tracked directly in Shipped.
+
+The built-in framework catalogue is separate work (PIN-1263); these rules do not
+introduce framework exemptions or claim that catalogue has been implemented.
+
+## Library author declarations
+
 The annotation assembly is `PinguApps.BlazorContentContracts`. Its assembly metadata
 key `BlazorContentContracts.SchemaVersion` has value `1`. The three public sealed authoring
 attributes live in namespace `PinguApps.BlazorContentContracts`, derive directly

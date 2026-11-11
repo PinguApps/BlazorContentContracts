@@ -20,3 +20,4 @@ BCC011 | ContentContracts | Warning | Declared implementation output cannot be v
 BCC012 | ContentContracts | Warning | Recursive wrapper or fragment output; break the reported cycle or declare an output contract
 BCC013 | ContentContracts | Warning | Analysis depth or work limit reached; simplify output or declare an output contract
 BCC014 | ContentContracts | Warning | Compiled metadata has an unsupported annotation identity, schema or summary version
+BCC015 | ContentContracts | Error | Invalid, conflicting or unacknowledged external component description

@@ -51,7 +51,66 @@ internal sealed class CompiledLibraryFixture : IDisposable
         Assert.Equal(0, exitCode);
         Project("Wrappers", "<PackageReference Include=\"Menu\" Version=\"1.0.0\" />");
 
-        if (wrapper is "razor" or "custom path" or "generic forwarding" or "typed forwarding" or "invalid forwarding")
+        if (wrapper.StartsWith("external", StringComparison.Ordinal))
+        {
+            File.WriteAllText(Path.Combine(directory, "Wrappers", "Wrapper.cs"), """
+                using Microsoft.AspNetCore.Components;
+                namespace Published;
+
+                public class Wrapper : ComponentBase
+                {
+                    [Parameter] public RenderFragment ChildContent { get; set; }
+
+                    protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                    {
+                        builder.AddContent(0, ChildContent);
+                    }
+                }
+                """);
+            var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
+            File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", ""));
+
+            if (wrapper == "external generic")
+            {
+                var source = Path.Combine(directory, "Wrappers", "Wrapper.cs");
+                File.WriteAllText(source, File.ReadAllText(source).Replace("class Wrapper :", "class Wrapper<TItem> :"));
+            }
+
+            if (wrapper == "external empty")
+            {
+                File.WriteAllText(Path.Combine(directory, "Wrappers", "Wrapper.cs"), """
+                    namespace Published;
+
+                    public class Wrapper : Microsoft.AspNetCore.Components.ComponentBase
+                    {
+                        [Microsoft.AspNetCore.Components.Parameter]
+                        public Microsoft.AspNetCore.Components.RenderFragment ChildContent { get; set; }
+                    }
+                    """);
+            }
+
+            if (wrapper == "external precedence")
+            {
+                File.WriteAllText(Path.Combine(directory, "Wrappers", "Conflict.cs"), "namespace Published;\n[PinguApps.BlazorContentContracts.ProducesContent(AllowText = true)]\npublic class Conflict : Wrapper\n{\n}\n");
+            }
+
+            if (wrapper == "external default")
+            {
+                var source = Path.Combine(directory, "Wrappers", "Wrapper.cs");
+                File.WriteAllText(source, File.ReadAllText(source).Replace("builder.AddContent(0, ChildContent);", """
+                    if (ChildContent == null)
+                    {
+                        builder.OpenElement(0, "div");
+                        builder.CloseElement();
+                    }
+                    else
+                    {
+                        builder.AddContent(0, ChildContent);
+                    }
+                    """));
+            }
+        }
+        else if (wrapper is "razor" or "custom path" or "generic forwarding" or "typed forwarding" or "invalid forwarding")
         {
             var generic = wrapper is not ("razor" or "custom path");
             File.WriteAllText(Path.Combine(directory, "Wrappers", "Wrapper.razor"),
@@ -172,6 +231,43 @@ internal sealed class CompiledLibraryFixture : IDisposable
             : "<Published.Wrapper />";
         File.WriteAllText(Path.Combine(directory, "Consumer", "Usage.razor"), "@using Microsoft.AspNetCore.Components\n<Menu>" + usage + "</Menu>");
 
+        if (wrapper.StartsWith("external", StringComparison.Ordinal))
+        {
+            var target = wrapper == "external precedence" ? "Published.Conflict"
+                : wrapper == "external framework derived" ? "Microsoft.AspNetCore.Components.Forms.InputRadioGroup<>"
+                : wrapper == "external generic" ? "Published.Wrapper<>" : "Published.Wrapper";
+            var slotOwner = wrapper == "external generic" ? "Published.Wrapper<int>"
+                : wrapper == "external framework derived" ? "Microsoft.AspNetCore.Components.Forms.InputRadioGroup<int>" : "Published.Wrapper";
+            File.WriteAllText(Path.Combine(directory, "Consumer", "External.cs"), $$"""
+                using PinguApps.BlazorContentContracts;
+                [assembly: ExternalContent(new System.Type[0], typeof({{target}}){{(wrapper is "external default" or "external empty" ? ", HtmlElements = new[] { \"div\" }, Trusted = true" : "")}})]
+                [assembly: ExternalForwarding(new[] { nameof({{slotOwner}}.ChildContent) }, typeof({{target}}))]
+                """);
+            usage = "<" + target + "><" + (wrapper == "external invalid forwarding" ? "span" : "Good") + " /></" + target + ">";
+
+            if (wrapper == "external generic")
+            {
+                usage = "<Published.Wrapper TItem=\"int\"><span /></Published.Wrapper>";
+            }
+
+            if (wrapper is "external derived" or "external framework derived")
+            {
+                File.WriteAllText(Path.Combine(directory, "Consumer", "Derived.cs"), $$"""
+                    public class Derived : {{(wrapper == "external framework derived" ? "Microsoft.AspNetCore.Components.Forms.InputRadioGroup<int>" : "Published.Wrapper")}}
+                    {
+                        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                        {
+                            builder.OpenElement(0, "span");
+                            builder.CloseElement();
+                        }
+                    }
+                    """);
+                usage = "<Derived />";
+            }
+
+            File.WriteAllText(Path.Combine(directory, "Consumer", "Usage.razor"), "<Menu>" + usage + "</Menu>");
+        }
+
         if (wrapper == "explicit")
         {
             File.AppendAllText(Path.Combine(directory, "Consumer", "Usage.razor"), "\n<Menu>@(Published.Factory.Create()(1))</Menu>");
@@ -212,6 +308,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() is "AD0001" or "CS8785");
         Assert.Equal(kind == "incompatible" ? 1 : 0, results.Count(result => result.GetProperty("ruleId").GetString() == "BCC014"));
         Assert.True(results.Count(result => result.GetProperty("ruleId").GetString() == rule) == count, output);
+
         Assert.Equal(rule is "BCC005" or "BCC009" ? 1 : 0, exitCode);
     }
 
