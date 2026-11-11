@@ -7,6 +7,12 @@ namespace PinguApps.BlazorContentContracts.Tests.Steps;
 [Binding]
 public sealed class RazorBuildSteps : IDisposable
 {
+    [Then("the Razor build explains {string}")]
+    public void ThenOutputContains(string text)
+    {
+        fixture.ThenOutputContains(text);
+    }
+
     private readonly RazorBuildFixture fixture = new();
 
     [Given("a declared output factory with body {string} and usage {string}")]
