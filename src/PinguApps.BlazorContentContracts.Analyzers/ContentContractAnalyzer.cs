@@ -213,7 +213,9 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
-                                    if (render == null || activeWrappers.Count >= 64 || !activeWrappers.Add(type.OriginalDefinition))
+                                    var declaredOutput = OutputContractAnalyzer.OutputContract(type, model.Compilation);
+
+                                    if (declaredOutput == null && (render == null || activeWrappers.Count >= 64 || !activeWrappers.Add(type.OriginalDefinition)))
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
@@ -267,9 +269,42 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         }
                                     }
 
+                                    if (declaredOutput != null)
+                                    {
+                                        CheckDeclaredContract(declaredOutput, type);
+
+                                        var forwarding = OutputContractAnalyzer.OutputContract(type, model.Compilation, "ForwardsContentAttribute");
+
+                                        if (forwarding != null && forwarding.ConstructorArguments.Length == 1)
+                                        {
+                                            foreach (var forwardedName in forwarding.ConstructorArguments[0].Values)
+                                            {
+                                                if (forwardedName.Value is string forwardedParameter && arguments.TryGetValue(forwardedParameter, out var input))
+                                                {
+                                                    var forwardedBody = FragmentBody(input.Expression, input.Model, context.CancellationToken,
+                                                        new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+
+                                                    if (!CheckForwardedContract(input.Expression, input.Model))
+                                                    {
+                                                        if (forwardedBody != null)
+                                                        {
+                                                            Validate(forwardedBody, input.Model, input.Inputs, nextPath + "." + forwardedParameter, consumer);
+                                                        }
+                                                        else
+                                                        {
+                                                            ReportUnknown("declared forwarded output is opaque", input.Expression);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        continue;
+                                    }
+
                                     // Wrapper implementations can live in another generated Razor tree.
 #pragma warning disable RS1030
-                                    Validate(render, model.Compilation.GetSemanticModel(render.SyntaxTree), arguments, nextPath, consumer);
+                                    Validate(render!, model.Compilation.GetSemanticModel(render!.SyntaxTree), arguments, nextPath, consumer);
 #pragma warning restore RS1030
                                     activeWrappers.Remove(type.OriginalDefinition);
                                 }
@@ -331,6 +366,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             else if (IsBuilderCall(child, "AddContent", model, context.CancellationToken)
                                 || IsBuilderCall(child, "AddMarkupContent", model, context.CancellationToken))
                             {
+                                if (CheckForwardedContract(expression, model))
+                                {
+                                    continue;
+                                }
+
                                 var forwarded = expression is InvocationExpressionSyntax invocation ? invocation.Expression : expression;
                                 var forwardedSymbol = model.GetSymbolInfo(forwarded, context.CancellationToken).Symbol;
 
@@ -425,18 +465,27 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             };
                         }
 
-                        if (model.GetSymbolInfo(expression, context.CancellationToken).Symbol is not IPropertySymbol property
-                            || !IsFragment(property.Type))
+                        var symbol = model.GetSymbolInfo(expression, context.CancellationToken).Symbol;
+                        var forwarded = symbol is IPropertySymbol property && IsFragment(property.Type)
+                            ? Contract(property.ContainingType, property.Name, model.Compilation)
+                            : OutputContractAnalyzer.OutputContract(symbol, model.Compilation);
+
+                        if (symbol == null)
                         {
                             return false;
                         }
-
-                        var forwarded = Contract(property.ContainingType, property.Name, model.Compilation);
 
                         if (forwarded == null || forwarded.ConstructorArguments.Length != 1)
                         {
                             return false;
                         }
+
+                        CheckDeclaredContract(forwarded, symbol);
+                        return true;
+                    }
+
+                    void CheckDeclaredContract(AttributeData forwarded, ISymbol symbol)
+                    {
 
                         var types = forwarded.ConstructorArguments[0].Values.Select(item => item.Value).OfType<INamedTypeSymbol>();
                         var elements = forwarded.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
@@ -449,10 +498,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         if (incompatible)
                         {
                             context.ReportDiagnostic(Diagnostic.Create(InvalidForwarding, outputLocation,
-                                property.ContainingType.Name + "." + property.Name, owner.Name, parameter));
+                                symbol.ToDisplayString(), owner.Name, parameter));
                         }
-
-                        return true;
                     }
 
                     void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)

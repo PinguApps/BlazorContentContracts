@@ -15,3 +15,5 @@ BCC006 | ContentContracts | Warning | Unresolved fragment, dynamic component sel
 BCC007 | ContentContracts | Warning | Malformed Razor suppression; specify next usage, supported diagnostic ID and reason
 BCC008 | ContentContracts | Warning | Unused Razor suppression; remove or move the comment
 BCC009 | ContentContracts | Error | Forwarded fragment permissions exceed the receiving contract
+BCC010 | ContentContracts | Error | Known implementation output contradicts its declared output contract
+BCC011 | ContentContracts | Warning | Declared implementation output cannot be verified; acknowledge locally at the implementation boundary
