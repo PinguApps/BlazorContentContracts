@@ -22,8 +22,11 @@ internal static class FragmentSources
                 return Resolve(parentheses.Expression, model, cancellation, active);
             case CastExpressionSyntax cast:
                 return Resolve(cast.Expression, model, cancellation, active);
-            case LambdaExpressionSyntax:
-                return new[] { expression };
+            case LambdaExpressionSyntax lambda:
+                var delegateType = model.GetTypeInfo(lambda, cancellation).ConvertedType as INamedTypeSymbol;
+                return delegateType?.Name == "RenderFragment"
+                    && delegateType.ContainingNamespace.ToDisplayString() == "Microsoft.AspNetCore.Components"
+                    ? new[] { expression } : new ExpressionSyntax?[] { null };
             case BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.AddExpression):
                 return Resolve(binary.Left, model, cancellation, active).Concat(Resolve(binary.Right, model, cancellation, active)).ToArray();
             case ConditionalExpressionSyntax conditional:

@@ -126,3 +126,17 @@ Feature: Fragment assignments preserve every possible output
             """
         When the real Razor SDK builds the consumer
         Then the forwarding build reports 'BCC010' exactly 1 times
+
+    Scenario: Inherited contract storage writes are checked
+        Given a family contract allowing 'Good' with '' and 'public override RenderFragment ChildContent { get; set; } = b => { b.AddContent(0, "bad"); };'
+        When the real Razor SDK builds the consumer
+        Then the family build reports 'BCC010' exactly 1 times
+
+    Scenario: Captured factory output remains unknown
+        Given a composed Razor consumer using
+            """
+            @{ RenderFragment captured = b => { }; System.Func<RenderFragment> factory = () => captured; }
+            <Slot>@factory()</Slot>
+            """
+        When the real Razor SDK builds the consumer
+        Then unresolved output has 1 warnings and 0 definite violations

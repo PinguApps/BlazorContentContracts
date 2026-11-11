@@ -205,7 +205,7 @@ same rules. Lifecycle and event methods contribute every possible write; this is
 an order-independent may-write analysis, so an overwritten invalid value can still
 be reported. Local aliases carry known output and uncertainty together.
 
-Opaque service results, ref/out mutation, delegate removal, externally writable
+Opaque service results, captured delegate-factory output, ref/out mutation, delegate removal, externally writable
 storage, custom setters and recursive/unavailable sources remain unknown (BCC006,
 or BCC011 when checking a declared output implementation). The analyzer does not
 execute lifecycle methods or prove runtime ordering, object identity or arbitrary

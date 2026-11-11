@@ -761,7 +761,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static AttributeData? Contract(INamedTypeSymbol type, string parameter, Compilation compilation)
+    internal static AttributeData? Contract(INamedTypeSymbol type, string parameter, Compilation compilation)
     {
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
 

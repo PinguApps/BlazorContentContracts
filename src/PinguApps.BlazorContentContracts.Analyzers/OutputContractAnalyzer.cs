@@ -59,7 +59,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
     {
         var owner = context.Symbol as INamedTypeSymbol;
         var storage = context.Symbol as IPropertySymbol;
-        var method = context.Symbol as IMethodSymbol ?? storage?.GetMethod;
+        var method = context.Symbol as IMethodSymbol ?? storage?.GetMethod ?? storage?.SetMethod;
 
         if (owner != null)
         {
@@ -97,8 +97,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
         }
 
         var contract = storage == null ? OutputContract(method, context.Compilation)
-            : storage.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString()
-                == "PinguApps.BlazorContentContracts.AllowedChildrenAttribute");
+            : ContentContractAnalyzer.Contract(storage.ContainingType, storage.Name, context.Compilation);
         var component = owner != null || method.Name == "BuildRenderTree" && method.IsOverride;
 
         if (component)
