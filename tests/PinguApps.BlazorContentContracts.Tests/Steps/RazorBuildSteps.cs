@@ -9,6 +9,12 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Then("the Razor build explains {string}")]
+    public void ThenOutputContains(string text)
+    {
+        fixture.ThenOutputContains(text);
+    }
+
     [Given("a declared output factory with body {string} and usage {string}")]
     public void GivenOutput(string body, string usage)
     {

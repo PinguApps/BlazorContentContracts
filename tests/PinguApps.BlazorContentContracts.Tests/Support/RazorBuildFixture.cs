@@ -12,6 +12,11 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class RazorBuildFixture : IDisposable
 {
+    public void ThenOutputContains(string text)
+    {
+        Assert.Contains(text, output);
+    }
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "bcc-razor-" + Guid.NewGuid().ToString("N"));
     private string content = "";
     private int exitCode;

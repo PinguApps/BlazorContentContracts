@@ -1,5 +1,11 @@
 Feature: Unknown output retains partial knowledge
 
+    Scenario: Derived framework output stays uncertain in a real consumer
+        Given a composed Razor consumer using '<Slot><CustomBoundary /><Bad /></Slot>@code { public class CustomBoundary : Microsoft.AspNetCore.Components.Web.ErrorBoundary { } }'
+        When the real Razor SDK builds the consumer
+        Then unresolved output has 1 warnings and 1 definite violations
+        And the Razor build explains 'derived framework component behaviour is not qualified'
+
     Scenario Outline: Explain unresolved output alongside definite violations
         Given a composed Razor consumer using '<usage>'
         When the real Razor SDK builds the consumer

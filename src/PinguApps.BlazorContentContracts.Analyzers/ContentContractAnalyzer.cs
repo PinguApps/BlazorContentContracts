@@ -291,7 +291,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
-                                        ReportUnknown("wrapper source is unavailable and compiled output metadata is missing, incompatible or unsupported; rebuild the library with summaries or declare its output", child);
+                                        FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
+                                        ReportUnknown(frameworkUncertainty ?? "wrapper source is unavailable and compiled output metadata is missing, incompatible or unsupported; rebuild the library with summaries or declare its output", child);
                                         continue;
                                     }
 
