@@ -1,7 +1,7 @@
 # Content contract metadata schema v1
 
 The annotation assembly is `PinguApps.BlazorContentContracts`. Its assembly metadata
-key `BlazorContentContracts.SchemaVersion` has value `1`. All three public sealed
+key `BlazorContentContracts.SchemaVersion` has value `1`. The three public sealed authoring
 attributes live in namespace `PinguApps.BlazorContentContracts`, derive directly
 from `System.Attribute`, allow one declaration per target and are inherited.
 They are retained in compiled metadata; no application code is executed to read them.
@@ -95,7 +95,7 @@ specialised limit diagnostics remain future work.
 Expression-bodied builder lambdas in slot attributes are not inspected by this slice. Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
 executing code. Explicit compiled ProducesContent declarations are consumed at call
-sites; inferred compiled summaries remain future composition work.
+sites; inferred summaries use the separate compiled summary schema below.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.
 
@@ -129,4 +129,53 @@ the receiving slot. They are promises by the library author, not proof of the
 unavailable implementation and not a runtime guarantee. A library built without
 the analyzer can publish an inaccurate declaration. Compile libraries with the
 analyzer to check their available source. This does not infer or publish new
-compiled output summaries.
+compiled output summaries by itself; inferred summaries use the publication mechanism below.
+
+## Compiled summary schema v1
+
+The analyzer package includes an incremental source generator. It emits assembly-level
+`CompiledContentAttribute(System.Type[] componentTypes, System.Type target)` and,
+when needed, `CompiledForwardingAttribute(System.String[] parameterNames, System.Type target)`.
+Both types are sealed annotation attributes, permit multiple assembly declarations,
+and expose read-only constructor properties plus a writable `Version` (default `1`).
+`CompiledContent` also exposes `HtmlElements` (empty by default) and `AllowText` (false).
+The annotation schema remains v1; summary versions are independently checked.
+These attributes are build output; continue authoring promises with `ProducesContent`
+and `ForwardsContent`.
+
+Summaries infer a bounded subset of C# render methods and Razor-generated C#:
+static `OpenComponent<T>`, constant element names/text, and directly emitted
+fragment parameter properties, including typed invocations. Fixed component
+types and forwarded names form a union. Generic wrapper targets use their open
+definition; forwarded arguments are checked separately at every usage. Fixed
+output containing a type parameter is unsupported. Explicit declarations take
+precedence, including inherited declarations. Missing templates contribute empty output.
+Only automatic fragment parameter properties without defaults or source writes
+are inferred as forwarding. Custom accessors, defaults and lifecycle/event writes
+remain unknown; callers cannot accidentally erase a library's default output.
+
+The generator skips unsupported bodies as a whole, including helper calls,
+dynamic output, opaque markup, assignments, object creation and throws. It does
+not execute application code or inspect IL. An inferred component type is a
+fixed permission boundary: it must itself be allowed by the receiver. Recursive
+inference through other unallowed components is not currently published.
+Use explicit output contracts for these cases.
+
+Razor source generators cannot see one another's output. The package's direct
+build targets therefore retain generated C# and perform a second compiler pass
+to publish Razor summaries into the same assembly and reference assembly. This
+adds compiler work to Razor builds. Design-time builds skip this publication
+pass. Set `BlazorContentContractsPublishSummaries=false` to disable generation;
+existing explicit annotations still survive compilation. Library authors must
+reference the analyzer package directly; automatic transitive activation is a
+separate delivery item. Existing generated-source output paths are preserved.
+
+Consumers read annotations and summaries through Roslyn assembly symbols for
+both project and NuGet references. Summaries must have a unique matching target,
+supported version, non-null output arrays and supported component/fragment types.
+Absent, duplicated or unsupported summaries remain unknown (`BCC006`), with a
+rebuild/declaration suggestion. `BCC014` additionally explains unsupported summary
+versions and annotation identity/schema conflicts. The annotation assembly must
+have the canonical assembly name and exactly one supported schema marker.
+Explicit declarations remain library-author promises; inferred summaries are
+compiler-generated descriptions, not runtime enforcement or a security boundary.

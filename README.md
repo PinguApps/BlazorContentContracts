@@ -187,7 +187,7 @@ unqualified until PIN-1270; build evidence does not establish live-editor suppor
 fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
 for supported targets, defaults, examples and inheritance rules. BCC002 validates
 declarations and BCC003 rejects conflicting inherited declarations without executing
-application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Explicit output contracts are checked against available implementations and trusted at calls, including referenced assemblies. Unavailable implementations remain an author promise with no runtime guarantee; inferred compiled summaries remain later work.
+application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Explicit output contracts are checked against available implementations and trusted at calls, including referenced assemblies. Unavailable implementations remain an author promise with no runtime guarantee; bounded inferred summaries now survive project and NuGet references. See [compiled summary schema v1](docs/contract-schema.md#compiled-summary-schema-v1) for supported output and build costs. BCC014 warns for incompatible compiled metadata.
 
 Annotated fragment parameters preserve their permissions when forwarded, including typed
 and inherited parameters. The source contract must fit entirely inside the receiving

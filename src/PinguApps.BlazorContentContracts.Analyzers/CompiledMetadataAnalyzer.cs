@@ -36,7 +36,9 @@ public sealed class CompiledMetadataAnalyzer : DiagnosticAnalyzer
                 foreach (var attribute in assembly.GetAttributes().Where(attribute => attribute.AttributeClass?.ToDisplayString()
                     is "PinguApps.BlazorContentContracts.CompiledContentAttribute" or "PinguApps.BlazorContentContracts.CompiledForwardingAttribute"))
                 {
-                    if (attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not INamedTypeSymbol target
+                    if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass,
+                            compilation.Compilation.GetTypeByMetadataName(attribute.AttributeClass!.ToDisplayString()))
+                        || attribute.ConstructorArguments.Length != 2 || attribute.ConstructorArguments[1].Value is not INamedTypeSymbol target
                         || !ValidSummary(attribute, target))
                     {
                         compilation.ReportDiagnostic(Diagnostic.Create(Incompatible, Location.None, assembly.Name + " publishes a malformed or unsupported summary; rebuild it with compatible annotations"));
@@ -51,6 +53,13 @@ public sealed class CompiledMetadataAnalyzer : DiagnosticAnalyzer
         var type = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts.ProducesContentAttribute");
 
         if (type?.ContainingAssembly.Identity.Name != "PinguApps.BlazorContentContracts")
+        {
+            return false;
+        }
+
+        if (new[] { "AllowedChildrenAttribute", "ForwardsContentAttribute" }.Any(name =>
+            !SymbolEqualityComparer.Default.Equals(type.ContainingAssembly,
+                compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + name)?.ContainingAssembly)))
         {
             return false;
         }
@@ -74,7 +83,7 @@ public sealed class CompiledMetadataAnalyzer : DiagnosticAnalyzer
         var forwarding = attribute.AttributeClass?.Name == "CompiledForwardingAttribute";
         return attribute.ConstructorArguments[0].Values.All(value => forwarding
             ? value.Value is string name && target.OriginalDefinition.GetMembers(name).OfType<IPropertySymbol>().Any(property => ContentContractAnalyzer.IsFragment(property.Type))
-            : value.Value is INamedTypeSymbol component && component.AllInterfaces.Any(item => item.ToDisplayString() == "Microsoft.AspNetCore.Components.IComponent"))
+            : value.Value is INamedTypeSymbol component && component.OriginalDefinition.AllInterfaces.Any(item => item.ToDisplayString() == "Microsoft.AspNetCore.Components.IComponent"))
             && !attribute.NamedArguments.Any(pair => pair.Key == "HtmlElements" && (pair.Value.IsNull
                 || pair.Value.Values.Any(value => value.Value is not string)));
     }

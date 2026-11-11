@@ -60,7 +60,18 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                     && candidate.ConstructorArguments[1].Value is INamedTypeSymbol target
                     && SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, component.OriginalDefinition)).ToArray();
 
-                if (summaries.Length == 1 && CompiledMetadataAnalyzer.ValidSummary(summaries[0], component))
+                var companionName = attributeName == "ForwardsContentAttribute" ? "CompiledContentAttribute" : "CompiledForwardingAttribute";
+                var companions = component.ContainingAssembly.GetAttributes().Where(candidate =>
+                    candidate.AttributeClass?.ToDisplayString() == "PinguApps.BlazorContentContracts." + companionName
+                    && candidate.ConstructorArguments.Length == 2
+                    && candidate.ConstructorArguments[1].Value is INamedTypeSymbol target
+                    && SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, component.OriginalDefinition)).ToArray();
+
+                if (summaries.Length == 1 && CompiledMetadataAnalyzer.ValidSummary(summaries[0], component)
+                    && companions.Length <= 1 && companions.All(candidate =>
+                        SymbolEqualityComparer.Default.Equals(candidate.AttributeClass,
+                            compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + companionName))
+                        && CompiledMetadataAnalyzer.ValidSummary(candidate, component)))
                 {
                     result = summaries[0];
                 }
