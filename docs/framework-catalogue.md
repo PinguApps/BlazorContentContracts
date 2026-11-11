@@ -53,7 +53,7 @@ regardless of the current authentication state. Omitted fragments emit nothing.
 `Authorized` and `ChildContent` must not both be supplied: the framework rejects
 that combination at runtime, even though Razor can compile it. This analyzer checks
 output contracts and does not validate framework parameter combinations. Other
-description kinds grant no transparency yet, except ErrorBoundary defaults: both supplied
+description kinds grant no transparency yet, except Virtualize (described below) and ErrorBoundary defaults: both supplied
 `ChildContent` and typed `ErrorContent` are checked; omitted `ErrorContent` adds the
 framework default empty `div`. An explicitly empty error template replaces that default.
 Allowed HTML still has its descendants checked; explicitly allowed ErrorBoundary
