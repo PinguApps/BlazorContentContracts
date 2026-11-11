@@ -288,7 +288,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     var declaredOutput = OutputContractAnalyzer.OutputContract(type, model.Compilation);
                                     var framework = FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
 
-                                    if (declaredOutput == null && render == null && framework?.Kind != "forwarding" && framework?.Kind != "alternatives")
+                                    if (declaredOutput == null && render == null
+                                        && framework?.Kind is not ("forwarding" or "alternatives" or "defaults"))
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
@@ -365,8 +366,19 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
-                                    if (framework?.Kind is "forwarding" or "alternatives")
+                                    if (framework?.Kind is "forwarding" or "alternatives" or "defaults")
                                     {
+                                        if (framework.Kind == "defaults" && !arguments.ContainsKey("ErrorContent"))
+                                        {
+                                            outputLocation = consumer;
+                                            outputPath = nextPath + ".ErrorContent";
+
+                                            foreach (var element in framework.DefaultElements)
+                                            {
+                                                CheckElement(element);
+                                            }
+                                        }
+
                                         foreach (var slot in framework.Slots)
                                         {
                                             if (arguments.TryGetValue(slot, out var input)
