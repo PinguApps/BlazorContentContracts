@@ -40,9 +40,13 @@ This schema does not encode text, parameter values, branch conditions or complet
 rendering logic. Those belong to the family-specific evaluators and their tests
 in PIN-1264–1268, rather than being inferred from slot/default lists.
 
-PIN-1263 supplies selection and metadata. PIN-1264–1268 implement each family's
+PIN-1263 supplies selection and metadata. PIN-1265–1268 implement each remaining family's
 parameter/default/template evaluation and enable its use in content validation.
-Until then, a selected description grants no transparency or exemption. Explicit
+The four `forwarding` providers are active on both supported identities: their supplied
+`ChildContent` is checked against the receiving contract without adding HTML output.
+`FormMappingScope` has a typed `RenderFragment<FormMappingContext>` slot; the other
+three providers have plain `RenderFragment` slots. Nested providers retain the same
+receiving contract. Other description kinds grant no transparency yet. Explicit
 external descriptions and author contracts keep their existing precedence.
 Unsupported identities and derived framework implementations produce actionable
 BCC006 uncertainty when no inspectable source or explicit contract is available.

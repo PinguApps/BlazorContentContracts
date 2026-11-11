@@ -40,7 +40,7 @@ try
 
     Run(root, "test", "-c", "Release", "--no-build");
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";

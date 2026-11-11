@@ -286,12 +286,12 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     }
 
                                     var declaredOutput = OutputContractAnalyzer.OutputContract(type, model.Compilation);
+                                    var framework = FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
 
-                                    if (declaredOutput == null && render == null)
+                                    if (declaredOutput == null && render == null && framework?.Kind != "forwarding")
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
-                                        FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
                                         ReportUnknown(frameworkUncertainty ?? "wrapper source is unavailable and compiled output metadata is missing, incompatible or unsupported; rebuild the library with summaries or declare its output", child);
                                         continue;
                                     }
@@ -359,6 +359,20 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                                         ValidateValue(input.Expression, input.Model, input.Inputs, nextPath + "." + forwardedParameter, consumer);
                                                     }
                                                 }
+                                            }
+                                        }
+
+                                        continue;
+                                    }
+
+                                    if (framework?.Kind == "forwarding")
+                                    {
+                                        foreach (var slot in framework.Slots)
+                                        {
+                                            if (arguments.TryGetValue(slot, out var input)
+                                                && !CheckForwardedContract(input.Expression, input.Model))
+                                            {
+                                                ValidateValue(input.Expression, input.Model, input.Inputs, nextPath + "." + slot, consumer);
                                             }
                                         }
 
