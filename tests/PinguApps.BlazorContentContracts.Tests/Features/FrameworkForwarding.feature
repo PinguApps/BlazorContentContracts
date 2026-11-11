@@ -21,6 +21,6 @@ Feature: Framework providers preserve content checking
             | <Slot><CascadingValue Value="1"><Microsoft.AspNetCore.Components.Forms.FormMappingScope Name="scope" Context="mapping"><Bad /></Microsoft.AspNetCore.Components.Forms.FormMappingScope></CascadingValue></Slot> | 1 |
 
     Scenario: A derived provider rendering override is inspected rather than exempted
-        Given a composed Razor consumer using '<Slot><CustomProvider Value="1"><Good /></CustomProvider></Slot>@code { public class CustomProvider : CascadingValue<int> { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { builder.OpenElement(0, "div"); builder.CloseElement(); } } }'
+        Given a composed Razor consumer using '<Slot><CustomProvider Value="1"><Good /></CustomProvider></Slot>@code { public class CustomProvider : Microsoft.AspNetCore.Components.Forms.InputRadioGroup<int> { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { builder.OpenElement(0, "div"); builder.CloseElement(); } } }'
         When the real Razor SDK builds the consumer
         Then unresolved output has 0 warnings and 1 definite violations
