@@ -36,6 +36,11 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             return null;
         }
 
+        if (symbol is INamedTypeSymbol described && ExternalDescriptionAnalyzer.HasMapping(described, compilation))
+        {
+            return ExternalDescriptionAnalyzer.Find(described, compilation, attributeName == "ForwardsContentAttribute");
+        }
+
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + attributeName);
         AttributeData? result = null;
 

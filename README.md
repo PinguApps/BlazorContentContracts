@@ -124,6 +124,7 @@ activation remain separate release work.
 | BCC010 | Error | Known implementation output or storage write contradicts its ProducesContent or AllowedChildren declaration. |
 | BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
 | BCC014 | Warning | Compiled summary or annotation identity/version is incompatible; rebuild with supported annotations or declare output explicitly. |
+| BCC015 | Error | Invalid or conflicting external component description; correct the target/slots or explicitly acknowledge trusted output. |
 
 Unknown output does not hide definite violations in siblings or other branches.
 BCC006 is limited to one warning per restricted slot usage. Explicitly allowed
@@ -183,6 +184,13 @@ PIN-1255 scope, live Visual Studio/VS Code diagnostics and insertion actions rem
 unqualified until PIN-1270; build evidence does not establish live-editor support.
 
 ## Public contract declarations
+
+Consumers can describe unmodified third-party wrappers locally with assembly-level
+`ExternalContent` and `ExternalForwarding` attributes. Forwarded descendants remain
+checked. Fixed/default output claims require explicit `Trusted = true`; mappings
+bind exact symbols and do not extend to derived rendering overrides. See
+[external descriptions](docs/contract-schema.md#consumer-descriptions-of-external-components)
+for generic support, precedence and the consumer trust boundary.
 
 `AllowedChildren`, `ProducesContent` and `ForwardsContent` describe fragment inputs,
 fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
