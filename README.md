@@ -33,6 +33,9 @@ and checks saved Windows user/machine PATH values before and after execution.
 
 ## Initial compatibility targets
 
+The [framework behaviour catalogue](docs/framework-catalogue.md) documents dependency
+identity/version selection and how to qualify entries, separately from this SDK/compiler host matrix.
+
 These are implementation and qualification targets agreed in PIN-1247, not claims of working diagnostics today.
 
 - Repository build SDK: .NET SDK `11.0.100`, with later patches in the `11.0.1xx` feature band permitted by `latestPatch`; previews are disabled.

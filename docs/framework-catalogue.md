@@ -18,8 +18,27 @@ and fixed/default output. They additionally distinguish alternatives, empty loca
 output, relocated output and parameter-dependent output. Slot lists are possible
 output sources, not a promise that all slots render together. Default elements
 are possible output, not unconditional output. Relocated content belongs elsewhere
-and must not be checked against the local receiving slot. Outlets and components
-with render-mode-dependent output remain unresolved.
+and must not be checked against the local receiving slot. Entries without a complete
+local-output model remain unresolved. Their slots/defaults are partial facts only;
+they cannot establish a complete output contract or grant an exemption.
+
+`FrameworkOutputDescription` has three fields: `Kind` classifies output, `Slots`
+names possible fragment parameters, and `DefaultElements` lists possible default
+HTML element names. The allowed kind values are:
+
+| Kind | Meaning |
+| --- | --- |
+| `forwarding` | Output comes from the listed fragment slots. |
+| `alternatives` | Alternative fragment branches can supply output. |
+| `defaults` | Omitted templates can introduce the listed default elements. |
+| `empty` | No local output. |
+| `relocated` | Content renders outside the local receiving slot. |
+| `parameter-dependent` | Parameters influence output; a family-specific evaluator is required. |
+| `unresolved` | The description is incomplete; keep local output unknown. |
+
+This schema does not encode text, parameter values, branch conditions or complete
+rendering logic. Those belong to the family-specific evaluators and their tests
+in PIN-1264–1268, rather than being inferred from slot/default lists.
 
 PIN-1263 supplies selection and metadata. PIN-1264–1268 implement each family's
 parameter/default/template evaluation and enable its use in content validation.
@@ -33,8 +52,11 @@ Known invalid sibling output remains an error. No new diagnostic ID is needed.
 
 1. Resolve the actual type and declaring assembly using the supported framework
    reference packs; namespaces do not determine assembly ownership.
-2. Inspect that version's implementation. Record every forwarded slot, alternative,
-   omitted-template default, local HTML/text, relocated output and relevant parameter.
+2. Inspect that version's implementation. Add its metadata name and declaring
+   assembly mapping in `FrameworkBehaviourCatalogue.Describe`. Choose one of the
+   kinds above and record its fragment slots and possible default element names.
+   Document additional text, parameter conditions and rendering facts alongside
+   the family-specific evaluator/tests before activating its rendering rule.
    Add a separate version branch when behaviour differs; never expand a version
    range based only on matching API names.
 3. Add an independent row to `FrameworkCatalogue.feature`. Assert slot names against

@@ -17,6 +17,21 @@ public sealed class FrameworkCatalogueSteps
     private FrameworkOutputDescription? description;
     private string? uncertainty;
 
+    [Given("the selected framework component is constructed with int")]
+    public void GivenConstructed()
+    {
+        component = component.Construct(compilation.GetSpecialType(SpecialType.System_Int32));
+    }
+
+    [Given("a constructed component derived from the selected framework component")]
+    public void GivenConstructedDerived()
+    {
+        compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+            "public class Custom<T> : Microsoft.AspNetCore.Components.CascadingValue<T> { }"));
+        component = compilation.GetTypeByMetadataName("Custom`1")!;
+        GivenConstructed();
+    }
+
     [Given("the installed framework component {string} from version {string}")]
     public void GivenFrameworkVersion(string name, string major)
     {

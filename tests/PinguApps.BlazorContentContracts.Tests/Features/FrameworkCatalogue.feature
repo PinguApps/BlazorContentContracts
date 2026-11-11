@@ -1,5 +1,30 @@
 Feature: Versioned framework behaviour catalogue
 
+    Scenario Outline: Constructed framework components select their definition
+        Given the installed framework component '<component>' from version '<version>'
+        And the selected framework component is constructed with int
+        When the framework catalogue selects a description
+        Then the framework output kind is '<kind>' with slots '<slots>' and defaults '<defaults>'
+
+        Examples:
+            | component | version | kind | slots | defaults |
+            | Microsoft.AspNetCore.Components.CascadingValue`1 | 10 | forwarding | ChildContent | |
+            | Microsoft.AspNetCore.Components.CascadingValue`1 | 11 | forwarding | ChildContent | |
+            | Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize`1 | 10 | parameter-dependent | ChildContent,ItemContent,Placeholder,EmptyContent | div |
+            | Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize`1 | 11 | parameter-dependent | ChildContent,ItemContent,Placeholder,EmptyContent | div |
+
+    Scenario Outline: Constructed derived behaviour stays unknown
+        Given the installed framework component 'Microsoft.AspNetCore.Components.CascadingValue`1' from version '<version>'
+        And a constructed component derived from the selected framework component
+        When the framework catalogue selects a description
+        Then no framework description is granted
+        And framework uncertainty explains 'declare its output explicitly'
+
+        Examples:
+            | version |
+            | 10 |
+            | 11 |
+
     Scenario Outline: Select supported dependency identities independently of the host
         Given a framework identity with version '<version>' and authentic key 'yes'
         When the framework catalogue selects a description
