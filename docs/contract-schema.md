@@ -94,7 +94,8 @@ Recursive or excessively deep wrapper expansion conservatively reports BCC006;
 specialised limit diagnostics remain future work.
 Expression-bodied builder lambdas in slot attributes are not inspected by this slice. Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
-executing code. Compiled output/forwarding declarations remain future composition work.
+executing code. Explicit compiled ProducesContent declarations are consumed at call
+sites; inferred compiled summaries remain future composition work.
 Future schema changes must retain these identities/defaults or document the required
 breaking version change. No runtime or Roslyn dependency is added to annotations.
 
@@ -103,3 +104,29 @@ slots. BCC009 rejects any source component family, HTML name or text permission 
 receiver does not permit. Typed invocation preserves the parameter contract. Base
 parameter contracts remain effective even after conflicting redeclarations. Callers
 are checked at the annotated boundary; opaque unannotated values remain BCC006.
+
+## Declared factory and component output
+
+`ProducesContent` is checked on available factory and component render bodies.
+`BCC010` is an error for known output outside the declaration. `BCC011` warns once
+at the factory method or component declaration when output is opaque. Callers use the declaration
+and do not repeat that implementation warning. Plain and typed fragment factory
+returns are supported. All inspectable return branches are checked without running
+application code. Unsupported available implementation forms remain uncertain.
+Factory declarations without bodies, such as abstract signatures, remain promises;
+available overrides are checked against their inherited declarations.
+For components, `ProducesContent` describes fixed output. `ForwardsContent` adds the
+listed slots' output to that fixed output; those slots need not fit the fixed-output
+permissions, but both contributions must fit the receiving slot's contract.
+
+Use a standard C# `#pragma warning disable BCC011` around the implementation to
+acknowledge uncertainty locally, then restore it. This never suppresses BCC010.
+The Razor `bcc-suppress-next` convention still applies only to BCC004/BCC006 usage
+warnings; it does not acknowledge a factory declaration.
+
+Explicit declarations in referenced assemblies are trusted when compatible with
+the receiving slot. They are promises by the library author, not proof of the
+unavailable implementation and not a runtime guarantee. A library built without
+the analyzer can publish an inaccurate declaration. Compile libraries with the
+analyzer to check their available source. This does not infer or publish new
+compiled output summaries.

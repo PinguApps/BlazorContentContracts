@@ -9,6 +9,36 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Given("a declared output factory with body {string} and usage {string}")]
+    public void GivenOutput(string body, string usage)
+    {
+        fixture.GivenOutput(body, usage);
+    }
+
+    [Given("a separately compiled output library declaring {string}")]
+    public void GivenPublishedOutput(string permission)
+    {
+        fixture.GivenPublishedOutput(permission);
+    }
+
+    [Given("a locally suppressed output factory emitting {string}")]
+    public void GivenOutputSuppression(string body)
+    {
+        fixture.GivenOutputSuppression(body);
+    }
+
+    [Given("a declared component output with markup {string}")]
+    public void GivenComponentOutput(string markup)
+    {
+        fixture.GivenComponentOutput(markup);
+    }
+
+    [Given("fixed and forwarded output received by {string} with content {string}")]
+    public void GivenCombinedOutput(string permissions, string child)
+    {
+        fixture.GivenCombinedOutput(permissions, child);
+    }
+
     [Then("the forwarding build reports {string} exactly {int} times")]
     public void ThenForwarding(string rule, int count)
     {

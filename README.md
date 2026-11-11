@@ -120,7 +120,9 @@ activation remain separate release work.
 | BCC006 | Warning | Opaque fragment/method output, runtime component selection or unsupported builder helper; the message explains the uncertainty. Inline inspectable output where possible. |
 | BCC007 | Warning | Malformed package suppression comment; specify `next`, BCC004 or BCC006, and a reason. |
 | BCC008 | Warning | Unused suppression; remove it or move it immediately before the intended usage. |
-| BCC009 | Error | Forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
+| BCC009 | Error | Declared output or forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
+| BCC010 | Error | Known implementation output contradicts its ProducesContent declaration. |
+| BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
 
 Unknown output does not hide definite violations in siblings or other branches.
 BCC006 is limited to one warning per restricted slot usage. Explicitly allowed
@@ -185,7 +187,7 @@ unqualified until PIN-1270; build evidence does not establish live-editor suppor
 fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
 for supported targets, defaults, examples and inheritance rules. BCC002 validates
 declarations and BCC003 rejects conflicting inherited declarations without executing
-application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Compiled output-contract validation and trust remain later work.
+application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Explicit output contracts are checked against available implementations and trusted at calls, including referenced assemblies. Unavailable implementations remain an author promise with no runtime guarantee; inferred compiled summaries remain later work.
 
 Annotated fragment parameters preserve their permissions when forwarded, including typed
 and inherited parameters. The source contract must fit entirely inside the receiving

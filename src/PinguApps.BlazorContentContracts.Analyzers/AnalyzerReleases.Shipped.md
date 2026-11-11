@@ -14,4 +14,6 @@ BCC005 | ContentContracts | Error | HTML element or visible text violates a rest
 BCC006 | ContentContracts | Warning | Unresolved fragment, dynamic component selection or unsupported manual builder output; use inspectable output
 BCC007 | ContentContracts | Warning | Malformed Razor suppression; specify next usage, supported diagnostic ID and reason
 BCC008 | ContentContracts | Warning | Unused Razor suppression; remove or move the comment
-BCC009 | ContentContracts | Error | Forwarded fragment permissions exceed the receiving contract
+BCC009 | ContentContracts | Error | Declared output or forwarded fragment permissions exceed the receiving contract
+BCC010 | ContentContracts | Error | Known implementation output contradicts its declared output contract
+BCC011 | ContentContracts | Warning | Declared implementation output cannot be verified; acknowledge locally at the implementation boundary

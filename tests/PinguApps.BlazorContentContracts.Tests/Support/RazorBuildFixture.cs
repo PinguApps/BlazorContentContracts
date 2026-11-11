@@ -17,12 +17,141 @@ internal sealed class RazorBuildFixture : IDisposable
     private int exitCode;
     private string output = "";
 
+    public void GivenOutput(string body, string usage)
+    {
+        var typed = body.StartsWith("context =>", StringComparison.Ordinal);
+        GivenComposition("@using PinguApps.BlazorContentContracts\n<Slot>" + usage + "</Slot>\n@code { [ProducesContent(typeof(Good))] private "
+            + (typed ? "RenderFragment<int>" : "RenderFragment") + " Factory() => " + body + "; }");
+    }
+
+    public void GivenPublishedOutput(string permission)
+    {
+        GivenComposition("<Slot>@LibraryFactory.Create()<PublishedWrapper /></Slot>");
+        var library = Path.Combine(directory, "Library");
+        Directory.CreateDirectory(library);
+        File.Move(Path.Combine(directory, "Good.cs"), Path.Combine(library, "Good.cs"));
+        var framework = Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0";
+        File.WriteAllText(Path.Combine(library, "Library.csproj"), $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>{{framework}}</TargetFramework></PropertyGroup>
+              <ItemGroup>
+                <FrameworkReference Include="Microsoft.AspNetCore.App" />
+                <Reference Include="PinguApps.BlazorContentContracts" HintPath="{{typeof(AllowedChildrenAttribute).Assembly.Location}}" />
+              </ItemGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(library, "LibraryFactory.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public static class LibraryFactory
+            {
+                [ProducesContent({{permission}})]
+                public static RenderFragment Create() => throw new System.Exception();
+            }
+            """);
+        File.WriteAllText(Path.Combine(library, "PublishedWrapper.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            [ProducesContent({{permission}})]
+            public class PublishedWrapper : ComponentBase
+            {
+                protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                {
+                    throw new System.Exception();
+                }
+            }
+            """);
+        var project = Path.Combine(directory, "Consumer.csproj");
+        File.WriteAllText(project, File.ReadAllText(project).Replace("</Project>", "<ItemGroup><Compile Remove=\"Library/**/*.cs\" /><ProjectReference Include=\"Library/Library.csproj\" /></ItemGroup></Project>", StringComparison.Ordinal));
+    }
+
+    public void GivenOutputSuppression(string body)
+    {
+        GivenComposition("<Slot>@Factory.Create() @Factory.Create()</Slot>");
+        File.WriteAllText(Path.Combine(directory, "Factory.cs"), $$"""
+            using Microsoft.AspNetCore.Components;
+            using PinguApps.BlazorContentContracts;
+
+            public static class Factory
+            {
+            #pragma warning disable BCC011
+                [ProducesContent(typeof(Good))]
+                public static RenderFragment Create() => builder =>
+                {
+                    {{body}}
+                };
+            #pragma warning restore BCC011
+            }
+            """);
+    }
+
+    public void GivenComponentOutput(string markup)
+    {
+        GivenComposition("<Slot><Wrapper /><Wrapper /></Slot>");
+
+        if (markup == "inherited")
+        {
+            File.WriteAllText(Path.Combine(directory, "BaseWrapper.cs"), """
+                using Microsoft.AspNetCore.Components;
+
+                public class BaseWrapper : ComponentBase
+                {
+                    protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+                    {
+                        builder.AddContent(0, "forbidden");
+                    }
+                }
+                """);
+            File.WriteAllText(Path.Combine(directory, "Wrapper.cs"), """
+                using PinguApps.BlazorContentContracts;
+
+                [ProducesContent(typeof(Good))]
+                public class Wrapper : BaseWrapper
+                {
+                }
+                """);
+
+            return;
+        }
+
+        File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n@using PinguApps.BlazorContentContracts\n@attribute [ProducesContent(typeof(Good))]\n" + markup);
+    }
+
+    public void GivenCombinedOutput(string permissions, string child)
+    {
+        GivenComposition("<Slot><Wrapper>" + child + "</Wrapper></Slot>");
+        var slot = Path.Combine(directory, "Slot.cs");
+        File.WriteAllText(slot, File.ReadAllText(slot).Replace("AllowedChildren(typeof(Good))", "AllowedChildren(" + permissions + ")", StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), """
+            @using Microsoft.AspNetCore.Components
+            @using PinguApps.BlazorContentContracts
+            @attribute [ProducesContent(typeof(Good))]
+            @attribute [ForwardsContent(nameof(ChildContent))]
+            <Good />
+            @ChildContent
+            @code {
+                [Parameter] public RenderFragment ChildContent { get; set; }
+            }
+            """);
+    }
+
     public void ThenForwarding(string rule, int count)
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
-        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray()
+            .Where(result => !result.TryGetProperty("suppressionStates", out var states)
+                || !states.EnumerateArray().Any(state => state.GetString() == "suppressedInSource")).ToArray();
 
         Assert.Equal(count, results.Count(result => result.GetProperty("ruleId").GetString() == rule));
+
+        if (rule == "BCC009")
+        {
+            Assert.All(results.Where(result => result.GetProperty("ruleId").GetString() == rule), result =>
+                Assert.Contains("declares output not allowed", result.GetProperty("message").GetString()));
+        }
+
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001"
             || result.GetProperty("ruleId").GetString()!.StartsWith("CS", StringComparison.Ordinal));
         Assert.All(results.Where(result => result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal)), result =>
