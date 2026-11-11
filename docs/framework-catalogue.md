@@ -87,3 +87,13 @@ Known invalid sibling output remains an error. No new diagnostic ID is needed.
 The registry tests currently exercise installed .NET 10 and .NET 11 framework symbols and
 synthetic .NET 10/11 selection identities. Real packed Razor consumers exercise
 the conservative derived-component path on both .NET 10 and .NET 11.
+
+Virtualize is active on both supported assembly identities. Its spacers use the
+constant `SpacerElement` value (default `div`); a dynamic value reports BCC006
+with a specific reason without hiding invalid templates. Its default placeholder
+is independently a `div`, including when spacers use `tr`. Explicit Placeholder
+replaces this fallback. ChildContent, ItemContent, Placeholder and EmptyContent
+are checked as possible output. Allowed Virtualize types remain terminal.
+These rules follow the .NET 10 Virtualize implementation and .NET 11 source:
+https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Virtualization/Virtualize.cs
+https://github.com/dotnet/aspnetcore/blob/main/src/Components/Web/src/Virtualization/Virtualize.cs

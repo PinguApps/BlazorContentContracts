@@ -289,7 +289,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     var framework = FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
 
                                     if (declaredOutput == null && render == null
-                                        && framework?.Kind is not ("forwarding" or "alternatives" or "defaults"))
+                                        && framework?.Kind is not ("forwarding" or "alternatives" or "defaults" or "parameter-dependent"))
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
@@ -366,8 +366,48 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
-                                    if (framework?.Kind is "forwarding" or "alternatives" or "defaults")
+                                    if (framework?.Kind is "forwarding" or "alternatives" or "defaults" or "parameter-dependent")
                                     {
+                                        if (framework.Kind == "parameter-dependent")
+                                        {
+                                            outputLocation = consumer;
+                                            outputPath = nextPath + ".SpacerElement";
+
+                                            if (!arguments.TryGetValue("SpacerElement", out var spacer))
+                                            {
+                                                CheckElement("div");
+                                            }
+                                            else
+                                            {
+                                                var spacerExpression = spacer.Expression;
+
+                                                if (spacerExpression is InvocationExpressionSyntax conversion
+                                                    && conversion.ArgumentList.Arguments.Count == 1
+                                                    && spacer.Model.GetSymbolInfo(conversion, context.CancellationToken).Symbol is IMethodSymbol conversionMethod
+                                                    && conversionMethod.Name == "TypeCheck"
+                                                    && conversionMethod.ContainingType.ToDisplayString() == "Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers")
+                                                {
+                                                    spacerExpression = conversion.ArgumentList.Arguments[0].Expression;
+                                                }
+
+                                                if (spacer.Model.GetConstantValue(spacerExpression, context.CancellationToken).Value is string tag)
+                                                {
+                                                    CheckElement(tag);
+                                                }
+                                                else
+                                                {
+                                                    ReportUnknown("Virtualize SpacerElement is not a statically established tag; use a constant tag or explicitly describe the component output", child);
+                                                }
+                                            }
+
+                                            if (!arguments.TryGetValue("Placeholder", out var placeholder)
+                                                || placeholder.Model.GetConstantValue(placeholder.Expression, context.CancellationToken) is { HasValue: true, Value: null })
+                                            {
+                                                outputPath = nextPath + ".Placeholder";
+                                                CheckElement("div");
+                                            }
+                                        }
+
                                         if (framework.Kind == "defaults" && !arguments.ContainsKey("ErrorContent"))
                                         {
                                             outputLocation = consumer;
