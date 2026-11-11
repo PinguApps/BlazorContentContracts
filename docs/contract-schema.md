@@ -45,7 +45,8 @@ omitted forwarding means no forwarding; sources are never mixed. Invalid mapping
 are not consumed. `BCC015` diagnoses malformed types/HTML, missing trust, unknown
 or duplicate slots, duplicate mappings and overlapping open/closed generic mappings.
 Remove overlaps rather than relying on source order. Forwarding requires one
-matching `ExternalContent` declaration. A target/type typo also produces the normal
+`ExternalContent` declaration with the identical target, including generic arguments.
+An open target cannot pair with a closed forwarding target. A target/type typo produces the normal
 C# compiler error. New diagnostics are tracked directly in Shipped.
 
 The built-in framework catalogue is separate work (PIN-1263); these rules do not

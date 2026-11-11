@@ -12,6 +12,7 @@ Feature: Consumer owned external descriptions
             | missing trust | 1 |
             | invalid target | 1 |
             | unknown slot | 1 |
+            | duplicate slot | 1 |
             | duplicate | 2 |
             | null types | 1 |
             | invalid html | 1 |

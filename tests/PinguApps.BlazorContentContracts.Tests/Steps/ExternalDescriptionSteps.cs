@@ -42,6 +42,7 @@ public sealed class ExternalDescriptionSteps
             "null types" => "[assembly: ExternalContent(null, typeof(Wrapper<int>))]",
             "invalid html" => "[assembly: ExternalContent(new System.Type[0], typeof(Wrapper<int>), HtmlElements = new[] { \"<div>\" }, Trusted = true)]",
             "forwarding alone" => "",
+            "duplicate slot" => "[assembly: ExternalContent(new System.Type[0], typeof(Wrapper<int>))][assembly: ExternalForwarding(new[] { \"ChildContent\", \"ChildContent\" }, typeof(Wrapper<int>))]",
             "generic" or "overlapping generic" => "[assembly: ExternalContent(new System.Type[0], typeof(Wrapper<>))]",
             _ => "[assembly: ExternalContent(new System.Type[0], typeof(Wrapper<int>))]"
         };
