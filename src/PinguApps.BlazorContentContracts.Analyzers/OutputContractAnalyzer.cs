@@ -31,6 +31,11 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
     internal static AttributeData? OutputContract(ISymbol? symbol, Compilation compilation, string attributeName = "ProducesContentAttribute")
     {
+        if (!CompiledMetadataAnalyzer.Compatible(compilation))
+        {
+            return null;
+        }
+
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + attributeName);
         AttributeData? result = null;
 
@@ -42,6 +47,34 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             if (attribute != null)
             {
                 result = attribute;
+            }
+
+            if (result == null && symbol is INamedTypeSymbol component && component.DeclaringSyntaxReferences.IsEmpty)
+            {
+                var summaryType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts."
+                    + (attributeName == "ForwardsContentAttribute" ? "CompiledForwardingAttribute" : "CompiledContentAttribute"));
+                var summaries = component.ContainingAssembly.GetAttributes().Where(candidate => summaryType != null
+                    &&
+                    SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, summaryType)
+                    && candidate.ConstructorArguments.Length == 2
+                    && candidate.ConstructorArguments[1].Value is INamedTypeSymbol target
+                    && SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, component.OriginalDefinition)).ToArray();
+
+                var companionName = attributeName == "ForwardsContentAttribute" ? "CompiledContentAttribute" : "CompiledForwardingAttribute";
+                var companions = component.ContainingAssembly.GetAttributes().Where(candidate =>
+                    candidate.AttributeClass?.ToDisplayString() == "PinguApps.BlazorContentContracts." + companionName
+                    && candidate.ConstructorArguments.Length == 2
+                    && candidate.ConstructorArguments[1].Value is INamedTypeSymbol target
+                    && SymbolEqualityComparer.Default.Equals(target.OriginalDefinition, component.OriginalDefinition)).ToArray();
+
+                if (summaries.Length == 1 && CompiledMetadataAnalyzer.ValidSummary(summaries[0], component)
+                    && companions.Length <= 1 && companions.All(candidate =>
+                        SymbolEqualityComparer.Default.Equals(candidate.AttributeClass,
+                            compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + companionName))
+                        && CompiledMetadataAnalyzer.ValidSummary(candidate, component)))
+                {
+                    result = summaries[0];
+                }
             }
 
             symbol = symbol switch
