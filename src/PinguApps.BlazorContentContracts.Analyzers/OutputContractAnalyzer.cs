@@ -25,7 +25,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(Analyze, SymbolKind.Method);
+        context.RegisterSymbolAction(Analyze, SymbolKind.Method, SymbolKind.NamedType);
     }
 
     internal static AttributeData? OutputContract(ISymbol? symbol, Compilation compilation, string attributeName = "ProducesContentAttribute")
@@ -56,13 +56,50 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
     private static void Analyze(SymbolAnalysisContext context)
     {
-        var method = (IMethodSymbol)context.Symbol;
+        var owner = context.Symbol as INamedTypeSymbol;
+        var method = context.Symbol as IMethodSymbol;
+
+        if (owner != null)
+        {
+            if (owner.GetMembers("BuildRenderTree").OfType<IMethodSymbol>().Any(candidate => candidate.IsOverride))
+            {
+                return;
+            }
+
+            for (var current = owner.BaseType; current != null; current = current.BaseType)
+            {
+                if (current.ToDisplayString() == "Microsoft.AspNetCore.Components.ComponentBase")
+                {
+                    return;
+                }
+
+                method = current.GetMembers("BuildRenderTree").OfType<IMethodSymbol>().FirstOrDefault(candidate => candidate.IsOverride);
+
+                if (method != null)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (method == null)
+        {
+            var unavailable = OutputContract(owner, context.Compilation);
+
+            if (unavailable?.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken) is SyntaxNode attribute)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Unknown, attribute.GetLocation(), owner!.ToDisplayString(), "component implementation is unsupported"));
+            }
+
+            return;
+        }
+
         var contract = OutputContract(method, context.Compilation);
-        var component = method.Name == "BuildRenderTree" && method.IsOverride;
+        var component = owner != null || method.Name == "BuildRenderTree" && method.IsOverride;
 
         if (component)
         {
-            contract = OutputContract(method.ContainingType, context.Compilation);
+            contract = OutputContract(owner ?? method.ContainingType, context.Compilation);
         }
 
         if (contract == null || contract.ConstructorArguments.Length != 1)
@@ -74,6 +111,11 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
         if (declaration == null)
         {
+            if (owner != null && contract.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken) is SyntaxNode attribute)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Unknown, attribute.GetLocation(), owner.ToDisplayString(), "inherited implementation is unavailable"));
+            }
+
             return;
         }
 
@@ -249,7 +291,16 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                             }
                             else if (!allowed.Any(item => Matches(item, type)))
                             {
-                                Report(true, "component " + type.Name);
+                                var output = OutputContract(type, context.Compilation);
+
+                                if (output != null)
+                                {
+                                    CheckPermissions(output);
+                                }
+                                else
+                                {
+                                    InspectComponent(type);
+                                }
                             }
                         }
 
@@ -343,6 +394,36 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             {
                 Report(true, "called declaration permits incompatible output");
             }
+        }
+
+        void InspectComponent(INamedTypeSymbol type)
+        {
+            for (INamedTypeSymbol? current = type; current != null; current = current.BaseType)
+            {
+                if (current.ToDisplayString() == "Microsoft.AspNetCore.Components.ComponentBase")
+                {
+                    return;
+                }
+
+                var render = current.GetMembers("BuildRenderTree").OfType<IMethodSymbol>().FirstOrDefault(candidate => candidate.IsOverride);
+
+                if (render != null)
+                {
+                    var syntax = render.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as MethodDeclarationSyntax;
+
+                    if (syntax != null)
+                    {
+#pragma warning disable RS1030
+                        Inspect(syntax.Body ?? (SyntaxNode?)syntax.ExpressionBody, context.Compilation.GetSemanticModel(syntax.SyntaxTree), true);
+#pragma warning restore RS1030
+                        return;
+                    }
+
+                    break;
+                }
+            }
+
+            Report(false, "nested component implementation is unavailable");
         }
     }
 

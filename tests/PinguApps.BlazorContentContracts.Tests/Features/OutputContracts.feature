@@ -43,3 +43,4 @@ Feature: Declared output is checked once at its implementation
             | <Good /> | BCC011 | 0 |
             | <span>bad</span> | BCC010 | 2 |
             | @(System.Activator.CreateInstance<RenderFragment>()) | BCC011 | 1 |
+            | inherited | BCC010 | 1 |

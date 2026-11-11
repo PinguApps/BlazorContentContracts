@@ -55,6 +55,14 @@ internal sealed class RazorBuildFixture : IDisposable
     public void GivenComponentOutput(string markup)
     {
         GivenComposition("<Slot><Wrapper /><Wrapper /></Slot>");
+
+        if (markup == "inherited")
+        {
+            File.WriteAllText(Path.Combine(directory, "BaseWrapper.cs"), "using Microsoft.AspNetCore.Components; public class BaseWrapper : ComponentBase { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { builder.AddContent(0, \"forbidden\"); } }");
+            File.WriteAllText(Path.Combine(directory, "Wrapper.cs"), "using PinguApps.BlazorContentContracts; [ProducesContent(typeof(Good))] public class Wrapper : BaseWrapper { }");
+            return;
+        }
+
         File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n@using PinguApps.BlazorContentContracts\n@attribute [ProducesContent(typeof(Good))]\n" + markup);
     }
 
