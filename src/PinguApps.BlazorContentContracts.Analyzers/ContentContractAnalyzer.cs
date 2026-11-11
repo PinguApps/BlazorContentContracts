@@ -172,7 +172,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                             if (!fragmentSources.TryGetValue(expression, out var candidates))
                             {
-                                candidates = FragmentSources.Resolve(expression, semantic, context.CancellationToken, traversal: new AnalysisTraversal(context.CancellationToken, ReportBound)).ToArray();
+                                candidates = FragmentSources.Resolve(expression, semantic, context.CancellationToken, traversal: traversal.Fork()).ToArray();
                                 fragmentSources.Add(expression, candidates);
                             }
 
@@ -373,10 +373,16 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     }
 
                                     // Wrapper implementations can live in another generated Razor tree.
+                                    try
+                                    {
 #pragma warning disable RS1030
-                                    Validate(render!, model.Compilation.GetSemanticModel(render!.SyntaxTree), arguments, nextPath, consumer);
+                                        Validate(render!, model.Compilation.GetSemanticModel(render!.SyntaxTree), arguments, nextPath, consumer);
 #pragma warning restore RS1030
-                                    traversal.Exit();
+                                    }
+                                    finally
+                                    {
+                                        traversal.Exit();
+                                    }
                                 }
 
                                 continue;
@@ -568,7 +574,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         if (reportedBounds.Add(rule.Id))
                         {
-                            var reason = recursive ? detail : "maximum depth 64 or expansion work 4096 exceeded (" + detail + ")";
+                            var reason = recursive ? detail : "maximum depth " + AnalysisTraversal.MaximumDepth + " or expansion work " + AnalysisTraversal.MaximumWork + " exceeded (" + detail + ")";
                             context.ReportDiagnostic(Diagnostic.Create(rule, outputLocation, owner.Name, parameter, reason));
                         }
                     }
@@ -750,12 +756,17 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         if (traversal.Enter(body, "fragment at " + body.GetLocation().GetLineSpan()))
                         {
-                            foreach (var emitted in ContentCalls(body, semantic, cancellation, active, traversal))
+                            try
                             {
-                                yield return emitted;
+                                foreach (var emitted in ContentCalls(body, semantic, cancellation, active, traversal))
+                                {
+                                    yield return emitted;
+                                }
                             }
-
-                            traversal.Exit();
+                            finally
+                            {
+                                traversal.Exit();
+                            }
                         }
                     }
 

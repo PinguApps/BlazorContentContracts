@@ -515,6 +515,7 @@ internal sealed class RazorBuildFixture : IDisposable
         var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
         var unresolved = results.Where(result => result.GetProperty("ruleId").GetString() == "BCC006").ToArray();
 
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() is "BCC012" or "BCC013");
         Assert.Equal(unknown, unresolved.Length);
         Assert.Equal(invalid, results.Count(result => result.GetProperty("ruleId").GetString() is "BCC001" or "BCC005"));
         Assert.All(unresolved, result =>

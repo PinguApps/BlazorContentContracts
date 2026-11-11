@@ -219,7 +219,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
             if (reportedBounds.Add(rule.Id))
             {
                 context.ReportDiagnostic(Diagnostic.Create(rule, declaration.GetLocation(), method.ContainingType.Name, method.Name,
-                    recursive ? detail : "maximum depth 64 or expansion work 4096 exceeded (" + detail + ")"));
+                    recursive ? detail : "maximum depth " + AnalysisTraversal.MaximumDepth + " or expansion work " + AnalysisTraversal.MaximumWork + " exceeded (" + detail + ")"));
             }
         }
 
@@ -345,7 +345,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
                         if (symbol is ILocalSymbol or IFieldSymbol or IPropertySymbol)
                         {
-                            foreach (var candidate in FragmentSources.Resolve((ExpressionSyntax)node, semantic, context.CancellationToken, traversal: new AnalysisTraversal(context.CancellationToken, ReportBound)))
+                            foreach (var candidate in FragmentSources.Resolve((ExpressionSyntax)node, semantic, context.CancellationToken, traversal: traversal.Fork()))
                             {
                                 if (candidate == null)
                                 {

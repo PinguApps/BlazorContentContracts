@@ -12,25 +12,37 @@ internal sealed class AnalysisTraversal
     private readonly List<object> active = new();
     private readonly CancellationToken cancellation;
     private readonly Action<bool, string>? report;
+    private readonly AnalysisTraversal? parent;
     private int work;
 
-    internal AnalysisTraversal(CancellationToken cancellation, Action<bool, string>? report = null)
+    internal AnalysisTraversal(CancellationToken cancellation, Action<bool, string>? report = null, AnalysisTraversal? parent = null)
     {
         this.cancellation = cancellation;
         this.report = report;
+        this.parent = parent;
     }
 
     internal bool Enter(object key, string label)
     {
         cancellation.ThrowIfCancellationRequested();
 
-        if (active.Contains(key))
+        if (active.Exists(item => item is ISymbol left && key is ISymbol right
+            ? SymbolEqualityComparer.Default.Equals(left, right) : ReferenceEquals(item, key)))
         {
             report?.Invoke(true, label);
             return false;
         }
 
-        if (active.Count >= MaximumDepth || ++work > MaximumWork)
+        var depth = active.Count;
+        var budget = this;
+
+        while (budget.parent != null)
+        {
+            budget = budget.parent;
+            depth += budget.active.Count;
+        }
+
+        if (depth >= MaximumDepth || ++budget.work > MaximumWork)
         {
             report?.Invoke(false, label);
             return false;
@@ -38,6 +50,11 @@ internal sealed class AnalysisTraversal
 
         active.Add(key);
         return true;
+    }
+
+    internal AnalysisTraversal Fork()
+    {
+        return new AnalysisTraversal(cancellation, report, this);
     }
 
     internal void Cycle(string label)
