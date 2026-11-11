@@ -36,7 +36,15 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         "BCC009", "Incompatible content contract", "'{0}' declares output not allowed in '{1}.{2}'",
         "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidForwarding, InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
+    internal static readonly DiagnosticDescriptor RecursiveOutput = new(
+        "BCC012", "Recursive content output", "Recursive output in '{0}.{1}': {2}; break the cycle or declare an output contract",
+        "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor AnalysisLimit = new(
+        "BCC013", "Content analysis limit", "Analysis limit in '{0}.{1}': {2}; simplify the output or declare an output contract",
+        "ContentContracts", DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(RecursiveOutput, AnalysisLimit, InvalidForwarding, InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -139,7 +147,10 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         ? html.Values.Select(value => value.Value as string).ToArray() : Array.Empty<string>();
                     var allowText = contract.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);
 
-                    var activeWrappers = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+                    var reportedBounds = new HashSet<string>();
+                    var traversal = new AnalysisTraversal(context.CancellationToken, ReportBound);
+                    var renderBodies = new Dictionary<INamedTypeSymbol, (BlockSyntax? Body, bool Empty)>(SymbolEqualityComparer.Default);
+                    var fragmentSources = new Dictionary<ExpressionSyntax, ExpressionSyntax?[]>();
 
                     if (CheckForwardedContract(value, context.SemanticModel))
                     {
@@ -150,45 +161,65 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     void ValidateValue(ExpressionSyntax expression, SemanticModel semantic, Dictionary<string, FragmentInput> inputs, string path, Location? usage)
                     {
-                        foreach (var candidate in FragmentSources.Resolve(expression, semantic, context.CancellationToken))
+                        if (!traversal.Enter(expression, path.Length == 0 ? "fragment" : path))
                         {
-                            if (candidate == null)
+                            return;
+                        }
+
+                        try
+                        {
+                            context.CancellationToken.ThrowIfCancellationRequested();
+
+                            if (!fragmentSources.TryGetValue(expression, out var candidates))
                             {
-                                ReportUnknown("fragment assignment, alias or method result is unestablished; inline the output or declare a source contract", expression, componentUsage: true);
-                                continue;
+                                candidates = FragmentSources.Resolve(expression, semantic, context.CancellationToken, traversal: new AnalysisTraversal(context.CancellationToken, ReportBound)).ToArray();
+                                fragmentSources.Add(expression, candidates);
                             }
+
+                            foreach (var candidate in candidates)
+                            {
+                                if (candidate == null)
+                                {
+                                    ReportUnknown("fragment assignment, alias or method result is unestablished; inline the output or declare a source contract", expression, componentUsage: true);
+                                    continue;
+                                }
 
 #pragma warning disable RS1030
-                            var candidateModel = semantic.Compilation.GetSemanticModel(candidate.SyntaxTree);
+                                var candidateModel = semantic.Compilation.GetSemanticModel(candidate.SyntaxTree);
 #pragma warning restore RS1030
-                            if (candidateModel.GetConstantValue(candidate, context.CancellationToken) is { HasValue: true, Value: null })
-                            {
-                                continue;
-                            }
+                                if (candidateModel.GetConstantValue(candidate, context.CancellationToken) is { HasValue: true, Value: null })
+                                {
+                                    continue;
+                                }
 
-                            if (CheckForwardedContract(candidate, candidateModel))
-                            {
-                                continue;
-                            }
+                                if (CheckForwardedContract(candidate, candidateModel))
+                                {
+                                    continue;
+                                }
 
-                            var body = FragmentBody(candidate, candidateModel, context.CancellationToken,
-                                new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+                                var body = FragmentBody(candidate, candidateModel, context.CancellationToken,
+                                    new HashSet<ISymbol>(SymbolEqualityComparer.Default));
 
-                            if (body != null)
-                            {
-                                Validate(body, candidateModel, inputs, path, usage);
+                                if (body != null)
+                                {
+                                    Validate(body, candidateModel, inputs, path, usage);
+                                }
+                                else
+                                {
+                                    ReportUnknown("fragment body is unsupported; use an inspectable builder block", candidate);
+                                }
                             }
-                            else
-                            {
-                                ReportUnknown("fragment body is unsupported; use an inspectable builder block", candidate);
-                            }
+                        }
+                        finally
+                        {
+                            traversal.Exit();
                         }
                     }
 
                     void Validate(BlockSyntax body, SemanticModel model, Dictionary<string, FragmentInput> inputs, string path, Location? usage)
                     {
                         var componentDepth = 0;
-                        var calls = ContentCalls(body, model, context.CancellationToken, new HashSet<SyntaxNode>()).ToArray();
+                        var calls = ContentCalls(body, model, context.CancellationToken, new HashSet<SyntaxNode>(), traversal).ToArray();
 
                         foreach (var child in calls)
                         {
@@ -239,7 +270,15 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                 {
                                     var consumer = usage ?? (child.SyntaxTree == tree && locations.TryGetValue(child.SpanStart, out var mapped) ? mapped : fallback);
                                     var nextPath = path.Length == 0 ? type.Name : path + " -> " + type.Name;
-                                    var render = RenderBody(type, model.Compilation, context.CancellationToken, out var empty);
+                                    if (!renderBodies.TryGetValue(type, out var cachedRender))
+                                    {
+                                        var renderedBody = RenderBody(type, model.Compilation, context.CancellationToken, out var isEmpty);
+                                        cachedRender = (renderedBody, isEmpty);
+                                        renderBodies.Add(type, cachedRender);
+                                    }
+
+                                    var render = cachedRender.Body;
+                                    var empty = cachedRender.Empty;
 
                                     if (empty)
                                     {
@@ -248,11 +287,11 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                                     var declaredOutput = OutputContractAnalyzer.OutputContract(type, model.Compilation);
 
-                                    if (declaredOutput == null && (render == null || activeWrappers.Count >= 64 || !activeWrappers.Add(type.OriginalDefinition)))
+                                    if (declaredOutput == null && render == null)
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
-                                        ReportUnknown("wrapper output is unavailable, unsupported or recursive", child);
+                                        ReportUnknown("wrapper output is unavailable or unsupported", child);
                                         continue;
                                     }
 
@@ -325,11 +364,19 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
+                                    outputLocation = consumer;
+                                    outputPath = nextPath;
+
+                                    if (!traversal.Enter(type, nextPath))
+                                    {
+                                        continue;
+                                    }
+
                                     // Wrapper implementations can live in another generated Razor tree.
 #pragma warning disable RS1030
                                     Validate(render!, model.Compilation.GetSemanticModel(render!.SyntaxTree), arguments, nextPath, consumer);
 #pragma warning restore RS1030
-                                    activeWrappers.Remove(type.OriginalDefinition);
+                                    traversal.Exit();
                                 }
 
                                 continue;
@@ -515,6 +562,17 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         }
                     }
 
+                    void ReportBound(bool recursive, string detail)
+                    {
+                        var rule = recursive ? RecursiveOutput : AnalysisLimit;
+
+                        if (reportedBounds.Add(rule.Id))
+                        {
+                            var reason = recursive ? detail : "maximum depth 64 or expansion work 4096 exceeded (" + detail + ")";
+                            context.ReportDiagnostic(Diagnostic.Create(rule, outputLocation, owner.Name, parameter, reason));
+                        }
+                    }
+
                     void ReportUnknown(string reason, SyntaxNode usage, bool componentUsage = false)
                     {
                         if (reportedUnknown)
@@ -644,12 +702,13 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
     }
 
     private static IEnumerable<InvocationExpressionSyntax> ContentCalls(SyntaxNode node, SemanticModel model,
-        System.Threading.CancellationToken cancellation, HashSet<SyntaxNode> active)
+        System.Threading.CancellationToken cancellation, HashSet<SyntaxNode> active, AnalysisTraversal traversal)
     {
         cancellation.ThrowIfCancellationRequested();
 
         if (!active.Add(node))
         {
+            traversal.Cycle("fragment at " + node.GetLocation().GetLineSpan());
             yield break;
         }
 
@@ -668,7 +727,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     var expanded = false;
                     var uncertain = false;
 
-                    foreach (var candidate in FragmentSources.Resolve(expression, model, cancellation))
+                    foreach (var candidate in FragmentSources.Resolve(expression, model, cancellation, traversal: traversal))
                     {
                         if (candidate == null)
                         {
@@ -689,9 +748,14 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         expanded = true;
 
-                        foreach (var emitted in ContentCalls(body, semantic, cancellation, active))
+                        if (traversal.Enter(body, "fragment at " + body.GetLocation().GetLineSpan()))
                         {
-                            yield return emitted;
+                            foreach (var emitted in ContentCalls(body, semantic, cancellation, active, traversal))
+                            {
+                                yield return emitted;
+                            }
+
+                            traversal.Exit();
                         }
                     }
 
@@ -705,7 +769,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            foreach (var emitted in ContentCalls(child, model, cancellation, active))
+            foreach (var emitted in ContentCalls(child, model, cancellation, active, traversal))
             {
                 yield return emitted;
             }

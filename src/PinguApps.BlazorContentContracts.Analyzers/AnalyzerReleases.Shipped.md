@@ -17,3 +17,5 @@ BCC008 | ContentContracts | Warning | Unused Razor suppression; remove or move t
 BCC009 | ContentContracts | Error | Declared output or forwarded fragment permissions exceed the receiving contract
 BCC010 | ContentContracts | Error | Known implementation output or fragment storage write contradicts its declared content contract
 BCC011 | ContentContracts | Warning | Declared implementation output cannot be verified; acknowledge locally at the implementation boundary
+BCC012 | ContentContracts | Warning | Recursive wrapper or fragment output; break the reported cycle or declare an output contract
+BCC013 | ContentContracts | Warning | Analysis depth or work limit reached; simplify output or declare an output contract

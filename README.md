@@ -211,3 +211,13 @@ or BCC011 when checking a declared output implementation). The analyzer does not
 execute lifecycle methods or prove runtime ordering, object identity or arbitrary
 alias mutation. Known violations remain errors alongside uncertainty. Compiled
 output and annotated parameter contracts retain their declared call-site promises.
+
+Recursive wrapper or fragment output reports **BCC012** (warning) with its expansion path.
+Break the cycle or declare an accurate output contract. Analysis stops expanding a branch
+at 64 active expansion levels or 4096 expansion operations per receiving contract and
+reports **BCC013** (warning). Independent known violations remain errors. These warnings
+can be promoted using `dotnet_diagnostic.BCC012.severity = error` and
+`dotnet_diagnostic.BCC013.severity = error` in analyzer configuration.
+Source/body caches live only within one receiving-contract analysis. Render bodies are
+keyed by constructed component symbols; fragment sources by syntax identity. Validated
+output is never cached across contracts or supplied templates, and edits start fresh.

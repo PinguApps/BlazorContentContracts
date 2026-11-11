@@ -209,6 +209,62 @@ internal sealed class RazorBuildFixture : IDisposable
             """);
     }
 
+    public void GivenBoundedOutput(string kind)
+    {
+        GivenWrapper("<Inner />", "<Wrapper /><span />");
+
+        if (kind == "fragment cycle")
+        {
+            GivenComposition("<Slot>@First()<span /></Slot>\n@code { private RenderFragment First() => Second(); private RenderFragment Second() => First(); }");
+            return;
+        }
+
+        if (kind == "contracts")
+        {
+            File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n@Body\n@code { [Parameter] public RenderFragment Body { get; set; } }");
+            File.WriteAllText(Path.Combine(directory, "Usage.razor"), "<Slot><ChildContent><Wrapper><Body><Good /></Body></Wrapper></ChildContent><Header><Wrapper><Body><Good /></Body></Wrapper></Header></Slot>");
+            return;
+        }
+
+        if (kind == "cycle")
+        {
+            File.WriteAllText(Path.Combine(directory, "Inner.razor"), "<Wrapper />");
+        }
+        else if (kind == "work limit")
+        {
+            File.WriteAllText(Path.Combine(directory, "Inner.razor"), string.Concat(Enumerable.Repeat("<Leaf />", 4200)));
+            File.WriteAllText(Path.Combine(directory, "Leaf.razor"), "<Good />");
+        }
+        else
+        {
+            File.WriteAllText(Path.Combine(directory, "Inner.razor"), "<Level0 />");
+
+            for (var index = 0; index < 70; index++)
+            {
+                File.WriteAllText(Path.Combine(directory, "Level" + index + ".razor"),
+                    index == 69 ? "<Good />" : "<Level" + (index + 1) + " />");
+            }
+        }
+    }
+
+    public void ThenBoundedOutput(string rule)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var diagnostic = Assert.Single(results, result => result.GetProperty("ruleId").GetString() == rule);
+
+        Assert.Equal("warning", diagnostic.GetProperty("level").GetString());
+        Assert.Contains("declare an output contract", diagnostic.GetProperty("message").GetString());
+        Assert.Single(results, result => result.GetProperty("ruleId").GetString() == "BCC005");
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+        Assert.EndsWith("Usage.razor", diagnostic.GetProperty("locations")[0].GetProperty("resultFile").GetProperty("uri").GetString());
+
+        if (rule == "BCC012")
+        {
+            Assert.Contains(" -> ", diagnostic.GetProperty("message").GetString());
+        }
+    }
+
     public void ThenWrapperPath()
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
@@ -599,7 +655,12 @@ internal sealed class RazorBuildFixture : IDisposable
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        if (!process.WaitForExit(90000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException("Razor consumer build exceeded 90 seconds.");
+        }
+
         output = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
         exitCode = process.ExitCode;
         Assert.True(File.Exists(Path.Combine(directory, "diagnostics.sarif")), output);
