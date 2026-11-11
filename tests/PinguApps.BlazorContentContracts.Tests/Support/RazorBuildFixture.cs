@@ -522,7 +522,7 @@ internal sealed class RazorBuildFixture : IDisposable
 
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() is "BCC012" or "BCC013");
         Assert.Equal(unknown, unresolved.Length);
-        Assert.Equal(invalid, results.Count(result => result.GetProperty("ruleId").GetString() is "BCC001" or "BCC005"));
+        Assert.True(invalid == results.Count(result => result.GetProperty("ruleId").GetString() is "BCC001" or "BCC005"), output);
         Assert.All(unresolved, result =>
         {
             Assert.Equal(severity, result.GetProperty("level").GetString());
