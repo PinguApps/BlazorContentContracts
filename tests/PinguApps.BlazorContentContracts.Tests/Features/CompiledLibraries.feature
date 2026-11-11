@@ -24,3 +24,11 @@ Feature: Contracts survive independent NuGet packages
             | conditional frames | BCC006 | 1 |
             | missing | BCC006 | 1 |
             | incompatible | BCC006 | 1 |
+            | external forwarding | BCC006 | 0 |
+            | external invalid forwarding | BCC005 | 1 |
+            | external default | BCC009 | 1 |
+            | external precedence | BCC006 | 0 |
+            | external derived | BCC005 | 1 |
+            | external generic | BCC005 | 1 |
+            | external empty | BCC009 | 1 |
+            | external framework derived | BCC005 | 1 |
