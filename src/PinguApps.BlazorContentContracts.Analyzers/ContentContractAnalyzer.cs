@@ -288,7 +288,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     var declaredOutput = OutputContractAnalyzer.OutputContract(type, model.Compilation);
                                     var framework = FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
 
-                                    if (declaredOutput == null && render == null && framework?.Kind != "forwarding")
+                                    if (declaredOutput == null && render == null && framework?.Kind != "forwarding" && framework?.Kind != "alternatives")
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
@@ -365,7 +365,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
-                                    if (framework?.Kind == "forwarding")
+                                    if (framework?.Kind is "forwarding" or "alternatives")
                                     {
                                         foreach (var slot in framework.Slots)
                                         {
