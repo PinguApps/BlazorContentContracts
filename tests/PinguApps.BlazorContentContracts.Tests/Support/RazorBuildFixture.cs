@@ -119,6 +119,24 @@ internal sealed class RazorBuildFixture : IDisposable
         File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), "@using Microsoft.AspNetCore.Components\n@using PinguApps.BlazorContentContracts\n@attribute [ProducesContent(typeof(Good))]\n" + markup);
     }
 
+    public void GivenCombinedOutput(string permissions, string child)
+    {
+        GivenComposition("<Slot><Wrapper>" + child + "</Wrapper></Slot>");
+        var slot = Path.Combine(directory, "Slot.cs");
+        File.WriteAllText(slot, File.ReadAllText(slot).Replace("AllowedChildren(typeof(Good))", "AllowedChildren(" + permissions + ")", StringComparison.Ordinal));
+        File.WriteAllText(Path.Combine(directory, "Wrapper.razor"), """
+            @using Microsoft.AspNetCore.Components
+            @using PinguApps.BlazorContentContracts
+            @attribute [ProducesContent(typeof(Good))]
+            @attribute [ForwardsContent(nameof(ChildContent))]
+            <Good />
+            @ChildContent
+            @code {
+                [Parameter] public RenderFragment ChildContent { get; set; }
+            }
+            """);
+    }
+
     public void ThenForwarding(string rule, int count)
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
@@ -127,6 +145,13 @@ internal sealed class RazorBuildFixture : IDisposable
                 || !states.EnumerateArray().Any(state => state.GetString() == "suppressedInSource")).ToArray();
 
         Assert.Equal(count, results.Count(result => result.GetProperty("ruleId").GetString() == rule));
+
+        if (rule == "BCC009")
+        {
+            Assert.All(results.Where(result => result.GetProperty("ruleId").GetString() == rule), result =>
+                Assert.Contains("declares output not allowed", result.GetProperty("message").GetString()));
+        }
+
         Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001"
             || result.GetProperty("ruleId").GetString()!.StartsWith("CS", StringComparison.Ordinal));
         Assert.All(results.Where(result => result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal)), result =>

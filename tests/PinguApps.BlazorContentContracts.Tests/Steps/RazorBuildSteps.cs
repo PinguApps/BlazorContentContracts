@@ -33,6 +33,12 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.GivenComponentOutput(markup);
     }
 
+    [Given("fixed and forwarded output received by {string} with content {string}")]
+    public void GivenCombinedOutput(string permissions, string child)
+    {
+        fixture.GivenCombinedOutput(permissions, child);
+    }
+
     [Then("the forwarding build reports {string} exactly {int} times")]
     public void ThenForwarding(string rule, int count)
     {

@@ -33,7 +33,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
         helpLinkUri: "https://github.com/PinguApps/BlazorContentContracts#diagnostics");
 
     private static readonly DiagnosticDescriptor InvalidForwarding = new(
-        "BCC009", "Incompatible forwarded contract", "Forwarded parameter '{0}' permits output not allowed in '{1}.{2}'",
+        "BCC009", "Incompatible content contract", "'{0}' declares output not allowed in '{1}.{2}'",
         "ContentContracts", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(InvalidForwarding, InvalidChild, InvalidMarkup, UnknownMarkup, UnknownOutput, RazorSuppressions.Malformed, RazorSuppressions.Unused);
@@ -486,7 +486,6 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                     void CheckDeclaredContract(AttributeData forwarded, ISymbol symbol)
                     {
-
                         var types = forwarded.ConstructorArguments[0].Values.Select(item => item.Value).OfType<INamedTypeSymbol>();
                         var elements = forwarded.NamedArguments.FirstOrDefault(pair => pair.Key == "HtmlElements").Value;
                         var text = forwarded.NamedArguments.Any(pair => pair.Key == "AllowText" && pair.Value.Value is true);

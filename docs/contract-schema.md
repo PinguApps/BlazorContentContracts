@@ -109,10 +109,15 @@ are checked at the annotated boundary; opaque unannotated values remain BCC006.
 
 `ProducesContent` is checked on available factory and component render bodies.
 `BCC010` is an error for known output outside the declaration. `BCC011` warns once
-at the implementation method when output is opaque. Callers use the declaration
+at the factory method or component declaration when output is opaque. Callers use the declaration
 and do not repeat that implementation warning. Plain and typed fragment factory
 returns are supported. All inspectable return branches are checked without running
-application code. Unsupported implementation forms remain uncertain.
+application code. Unsupported available implementation forms remain uncertain.
+Factory declarations without bodies, such as abstract signatures, remain promises;
+available overrides are checked against their inherited declarations.
+For components, `ProducesContent` describes fixed output. `ForwardsContent` adds the
+listed slots' output to that fixed output; those slots need not fit the fixed-output
+permissions, but both contributions must fit the receiving slot's contract.
 
 Use a standard C# `#pragma warning disable BCC011` around the implementation to
 acknowledge uncertainty locally, then restore it. This never suppresses BCC010.

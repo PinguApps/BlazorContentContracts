@@ -45,3 +45,14 @@ Feature: Declared output is checked once at its implementation
             | <span>bad</span> | BCC010 | 2 |
             | @(System.Activator.CreateInstance<RenderFragment>()) | BCC011 | 1 |
             | inherited | BCC010 | 1 |
+
+    Scenario Outline: Fixed output and forwarded slots form a union at the receiver
+        Given fixed and forwarded output received by '<permissions>' with content '<child>'
+        When the real Razor SDK builds the consumer
+        Then the forwarding build reports '<rule>' exactly <count> times
+
+        Examples:
+            | permissions | child | rule | count |
+            | typeof(Good), typeof(Bad) | <Bad /> | BCC006 | 0 |
+            | typeof(Good) | <Bad /> | BCC005 | 1 |
+            | typeof(Good) | <Good /> | BCC006 | 0 |

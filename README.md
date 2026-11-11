@@ -120,7 +120,7 @@ activation remain separate release work.
 | BCC006 | Warning | Opaque fragment/method output, runtime component selection or unsupported builder helper; the message explains the uncertainty. Inline inspectable output where possible. |
 | BCC007 | Warning | Malformed package suppression comment; specify `next`, BCC004 or BCC006, and a reason. |
 | BCC008 | Warning | Unused suppression; remove it or move it immediately before the intended usage. |
-| BCC009 | Error | Forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
+| BCC009 | Error | Declared output or forwarded parameter permissions exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
 | BCC010 | Error | Known implementation output contradicts its ProducesContent declaration. |
 | BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
 
