@@ -29,6 +29,7 @@ Feature: Contracts survive independent NuGet packages
             | external default | BCC009 | 1 |
             | external precedence | BCC006 | 0 |
             | external derived | BCC005 | 1 |
+            | external derived summarized | BCC005 | 1 |
             | external generic | BCC005 | 1 |
             | external empty | BCC009 | 1 |
             | external framework derived | BCC005 | 1 |
