@@ -52,6 +52,6 @@ compiler; `scripts/verify.cs` restores the just-packed nupkg files, not a publis
 feed or a shared package cache. No mocked Razor syntax trees establish this proof.
 
 By Pingu's explicit PIN-1249 scope decision, this PR proves CLI diagnostics only.
-Visual Studio and VS Code live diagnostics remain unclaimed pending PIN-1270,
-which must qualify exact editor/extension/compiler versions and source mapping.
-An external-file CLI location does not establish editor squiggles or code actions.
+PIN-1270 separately qualifies [Visual Studio and VS Code editor diagnostics](../../docs/editor-support.md),
+including exact host versions, repeatable fixtures and insertion-action limitations.
+This CLI fixture alone does not establish editor squiggles or code actions.

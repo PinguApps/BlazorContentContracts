@@ -36,13 +36,13 @@ and checks saved Windows user/machine PATH values before and after execution.
 The [framework behaviour catalogue](docs/framework-catalogue.md) documents dependency
 identity/version selection and how to qualify entries, separately from this SDK/compiler host matrix.
 
-These are implementation and qualification targets agreed in PIN-1247, not claims of working diagnostics today.
+The build targets below are checked by package verification. Live support is limited to the separately recorded editor qualification.
 
 - Repository build SDK: .NET SDK `11.0.100`, with later patches in the `11.0.1xx` feature band permitted by `latestPatch`; previews are disabled.
 - Consumer framework and Razor: .NET 11 (`net11.0`), ASP.NET Core/Razor 11 using the Razor tooling bundled with the selected SDK. .NET 10 consumers on SDK `10.0.403` remain supported and are verified against the same packed artifacts. .NET 8, .NET 9 and preview SDKs are outside this scope.
 - Build analyzer host: Roslyn `5.12` supplied by SDK `11.0.100` (the analyzer retains Roslyn `5.9` dependencies for .NET 10 host compatibility). The analyzer assembly targets `netstandard2.0`, following the existing PinguApps analyzer convention; that assembly target does not promise support for older compiler hosts or consumer frameworks. Keep compiler dependencies separate from the runtime annotation assembly.
-- Live editor targets: Visual Studio with .NET 10 Razor tooling, and VS Code with the C# extension/C# Dev Kit and .NET 10 tooling. Rider is outside the initial live-editor scope.
-- Build diagnostics and original Razor source mapping must be proven in PIN-1249. Editor diagnostics and suppression actions must be proven separately in PIN-1270, recording exact editor, extension, Razor and compiler versions and any limitations. CLI build support does not establish live-editor support.
+- Qualified live editor hosts: Visual Studio 18.11 and VS Code 1.139 with .NET 10 consumers. See [editor qualification](docs/editor-support.md) for exact extension/compiler versions, repeatable fixtures, save/rebuild boundaries and action limitations. Rider and .NET 11 live editing are not qualified.
+- CLI build support and live-editor qualification are separate evidence. The editor record covers original Razor spans, wrappers, library contracts and the opt-in VS Code suppression action; Visual Studio insertion remains manual.
 
 ## Scope of this setup
 
@@ -184,8 +184,9 @@ real `.razor` consumers on .NET 10/11 with the packed artifacts.
 [Suppression.razor](samples/RazorMapping/Suppression.razor) is a reusable editor
 fixture: removing either comment should restore its unknown-output diagnostic;
 duplicating the expression should leave the sibling checked. Per the agreed
-PIN-1255 scope, live Visual Studio/VS Code diagnostics and insertion actions remain
-unqualified until PIN-1270; build evidence does not establish live-editor support.
+PIN-1255 scope, build evidence alone does not establish live-editor support. See
+[editor qualification](docs/editor-support.md) for PIN-1270's separate host evidence
+and suppression-action limitations.
 
 ## Public contract declarations
 
