@@ -71,8 +71,8 @@ Feature: Versioned framework behaviour catalogue
             | 11 | Microsoft.AspNetCore.Components.Forms.FormMappingScope | forwarding | ChildContent | |
             | 10 | Microsoft.AspNetCore.Components.Forms.DataAnnotationsValidator | empty | | |
             | 11 | Microsoft.AspNetCore.Components.Forms.DataAnnotationsValidator | empty | | |
-            | 10 | Microsoft.AspNetCore.Components.Forms.EditForm | unresolved | ChildContent | form |
-            | 11 | Microsoft.AspNetCore.Components.Forms.EditForm | unresolved | ChildContent | form |
+            | 10 | Microsoft.AspNetCore.Components.Forms.EditForm | conditional-elements | ChildContent | form,input |
+            | 11 | Microsoft.AspNetCore.Components.Forms.EditForm | conditional-elements-unresolved | ChildContent | form,input |
             | 10 | Microsoft.AspNetCore.Components.Web.HeadContent | relocated | ChildContent | |
             | 11 | Microsoft.AspNetCore.Components.Web.HeadContent | relocated | ChildContent | |
             | 10 | Microsoft.AspNetCore.Components.Web.PageTitle | relocated | ChildContent | |
@@ -87,10 +87,10 @@ Feature: Versioned framework behaviour catalogue
             | 11 | Microsoft.AspNetCore.Components.Web.ErrorBoundary | defaults | ChildContent,ErrorContent | div |
             | 10 | Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize`1 | parameter-dependent | ChildContent,ItemContent,Placeholder,EmptyContent | div |
             | 11 | Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize`1 | parameter-dependent | ChildContent,ItemContent,Placeholder,EmptyContent | div |
-            | 10 | Microsoft.AspNetCore.Components.Forms.AntiforgeryToken | unresolved | | |
-            | 11 | Microsoft.AspNetCore.Components.Forms.AntiforgeryToken | unresolved | | |
-            | 10 | Microsoft.AspNetCore.Components.Routing.FocusOnNavigate | unresolved | | |
-            | 11 | Microsoft.AspNetCore.Components.Routing.FocusOnNavigate | unresolved | | |
+            | 10 | Microsoft.AspNetCore.Components.Forms.AntiforgeryToken | conditional-elements | | input |
+            | 11 | Microsoft.AspNetCore.Components.Forms.AntiforgeryToken | conditional-elements | | input |
+            | 10 | Microsoft.AspNetCore.Components.Routing.FocusOnNavigate | conditional-elements | | blazor-focus-on-navigate |
+            | 11 | Microsoft.AspNetCore.Components.Routing.FocusOnNavigate | conditional-elements | | blazor-focus-on-navigate |
 
     Scenario: A same-named user component receives no exemption
         Given a user component named CascadingValue

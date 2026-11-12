@@ -46,6 +46,11 @@ internal static class FrameworkBehaviourCatalogue
                 return null;
             }
 
+            if (name == "Microsoft.AspNetCore.Components.Forms.EditForm" && identity.Version.Major == 11)
+            {
+                return new("conditional-elements-unresolved", new[] { "ChildContent" }, new[] { "form", "input" });
+            }
+
             return description;
         }
 
@@ -87,7 +92,7 @@ internal static class FrameworkBehaviourCatalogue
             case "Microsoft.AspNetCore.Components.Forms.DataAnnotationsValidator":
                 return new("empty", Array.Empty<string>(), Array.Empty<string>());
             case "Microsoft.AspNetCore.Components.Forms.EditForm":
-                return new("unresolved", new[] { "ChildContent" }, new[] { "form" });
+                return new("conditional-elements", new[] { "ChildContent" }, new[] { "form", "input" });
         }
 
         assembly = "Microsoft.AspNetCore.Components.Web";
@@ -102,9 +107,11 @@ internal static class FrameworkBehaviourCatalogue
             case "Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize`1":
                 return new("parameter-dependent", new[] { "ChildContent", "ItemContent", "Placeholder", "EmptyContent" }, new[] { "div" });
             case "Microsoft.AspNetCore.Components.Web.HeadOutlet":
-            case "Microsoft.AspNetCore.Components.Forms.AntiforgeryToken":
-            case "Microsoft.AspNetCore.Components.Routing.FocusOnNavigate":
                 return new("unresolved", Array.Empty<string>(), Array.Empty<string>());
+            case "Microsoft.AspNetCore.Components.Forms.AntiforgeryToken":
+                return new("conditional-elements", Array.Empty<string>(), new[] { "input" });
+            case "Microsoft.AspNetCore.Components.Routing.FocusOnNavigate":
+                return new("conditional-elements", Array.Empty<string>(), new[] { "blazor-focus-on-navigate" });
             default:
                 return null;
         }

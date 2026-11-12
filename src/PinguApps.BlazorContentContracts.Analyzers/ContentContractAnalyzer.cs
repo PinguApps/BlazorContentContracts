@@ -289,7 +289,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                     var framework = FrameworkBehaviourCatalogue.Find(type, model.Compilation, out var frameworkUncertainty);
 
                                     if (declaredOutput == null && render == null
-                                        && framework?.Kind is not ("forwarding" or "alternatives" or "defaults" or "parameter-dependent"))
+                                        && framework?.Kind is not ("forwarding" or "alternatives" or "defaults" or "parameter-dependent" or "empty" or "relocated" or "conditional-elements" or "conditional-elements-unresolved"))
                                     {
                                         outputLocation = consumer;
                                         outputPath = nextPath;
@@ -366,8 +366,29 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                                         continue;
                                     }
 
-                                    if (framework?.Kind is "forwarding" or "alternatives" or "defaults" or "parameter-dependent")
+                                    if (framework?.Kind is "empty" or "relocated")
                                     {
+                                        continue;
+                                    }
+
+                                    if (framework?.Kind is "forwarding" or "alternatives" or "defaults" or "parameter-dependent" or "conditional-elements" or "conditional-elements-unresolved")
+                                    {
+                                        if (framework.Kind is "conditional-elements" or "conditional-elements-unresolved")
+                                        {
+                                            outputLocation = consumer;
+                                            outputPath = nextPath;
+
+                                            foreach (var element in framework.DefaultElements)
+                                            {
+                                                CheckElement(element);
+                                            }
+                                        }
+
+                                        if (framework.Kind == "conditional-elements-unresolved")
+                                        {
+                                            ReportUnknown("EditForm client validation output depends on an ambient .NET 11 ClientValidationProvider; declare its output explicitly", child);
+                                        }
+
                                         if (framework.Kind == "parameter-dependent")
                                         {
                                             outputLocation = consumer;
