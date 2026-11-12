@@ -9,6 +9,18 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Given("editor diagnostic locations are requested")]
+    public void GivenEditorLocations()
+    {
+        fixture.GivenEditorLocations();
+    }
+
+    [Then("the diagnostic targets the generated component identifier for editor mapping")]
+    public void ThenEditorLocations()
+    {
+        fixture.ThenEditorLocations();
+    }
+
     [Then("the Razor build explains {string}")]
     public void ThenOutputContains(string text)
     {

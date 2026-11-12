@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="BlazorContentContractsPublishSummaries" />
+    <CompilerVisibleProperty Include="DesignTimeBuild" />
   </ItemGroup>
 
   <Target Name="BlazorContentContractsReadRazor" BeforeTargets="CoreCompile"

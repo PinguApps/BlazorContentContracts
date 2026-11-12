@@ -21,6 +21,24 @@ internal sealed class RazorBuildFixture : IDisposable
     private string content = "";
     private int exitCode;
     private string output = "";
+    private bool editorLocations;
+
+    public void GivenEditorLocations()
+    {
+        editorLocations = true;
+    }
+
+    public void ThenEditorLocations()
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        var diagnostic = Assert.Single(results, result => result.GetProperty("ruleId").GetString() == "BCC005");
+        var location = diagnostic.GetProperty("locations")[0].GetProperty("resultFile");
+
+        Assert.EndsWith(".g.cs", location.GetProperty("uri").GetString());
+        Assert.Contains("via Bad", diagnostic.GetProperty("message").GetString());
+        Assert.DoesNotContain(results, result => result.GetProperty("ruleId").GetString() == "AD0001");
+    }
 
     public void GivenOutput(string body, string usage)
     {
@@ -639,6 +657,14 @@ internal sealed class RazorBuildFixture : IDisposable
         start.ArgumentList.Add("build");
         start.ArgumentList.Add("-v:q");
         start.ArgumentList.Add("--disable-build-servers");
+
+        if (editorLocations)
+        {
+            start.ArgumentList.Add("-p:DesignTimeBuild=true");
+            start.ArgumentList.Add("-p:EmitCompilerGeneratedFiles=false");
+            start.ArgumentList.Add("-p:CompilerGeneratedFilesOutputPath=");
+        }
+
         var packages = Environment.GetEnvironmentVariable("BCC_PACKAGES");
 
         if (packages != null)
