@@ -1,5 +1,12 @@
 <Project>
-  <PropertyGroup Condition="'$(BlazorContentContractsPublishSummaries)' != 'false'">
+  <Target Name="BlazorContentContractsConfigureAnalysis" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.Analyzers'" />
+      <Analyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/cs/PinguApps.BlazorContentContracts.Analyzers.dll" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
+      <AdditionalFiles Include="@(RazorComponent);@(RazorGenerate)" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
+    </ItemGroup>
+  </Target>
+  <PropertyGroup Condition="'$(BlazorContentContractsEnabled)' != 'false' and '$(BlazorContentContractsPublishSummaries)' != 'false'">
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(IntermediateOutputPath)bcc-generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
@@ -19,7 +26,7 @@
   </Target>
 
   <Target Name="BlazorContentContractsPublishRazor" AfterTargets="CoreCompile"
-          Condition="'$(BlazorContentContractsPublishSummaries)' != 'false' and '$(BlazorContentContractsSummaryPass)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+          Condition="'$(BlazorContentContractsEnabled)' != 'false' and '$(BlazorContentContractsPublishSummaries)' != 'false' and '$(BlazorContentContractsSummaryPass)' != 'true' and '$(DesignTimeBuild)' != 'true'">
     <ItemGroup>
       <_BccRazorGenerated Include="$(CompilerGeneratedFilesOutputPath)/**/*_razor.g.cs" />
     </ItemGroup>

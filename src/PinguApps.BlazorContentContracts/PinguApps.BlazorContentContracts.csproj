@@ -3,4 +3,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Annotations for Blazor component content contracts, including restricted fragment child types.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PinguApps.BlazorContentContracts.Analyzers/PinguApps.BlazorContentContracts.Analyzers.csproj" OutputItemType="Analyzer" IncludeAssets="all" PrivateAssets="none" />
+  </ItemGroup>
 </Project>
