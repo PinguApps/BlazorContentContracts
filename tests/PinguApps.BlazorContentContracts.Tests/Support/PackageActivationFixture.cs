@@ -21,10 +21,28 @@ internal sealed class PackageActivationFixture : IDisposable
         var packages = Environment.GetEnvironmentVariable("BCC_PACKAGES")
             ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts/packages"));
         File.WriteAllText(Path.Combine(directory, "NuGet.Config"),
-            $"<configuration><packageSources><clear /><add key=\"local\" value=\"{packages}\" /><add key=\"graph\" value=\"{directory}\" /></packageSources></configuration>");
+            $$"""
+            <configuration>
+              <packageSources>
+                <clear />
+                <add key="local" value="{{packages}}" />
+                <add key="graph" value="{{directory}}" />
+                <add key="framework" value="https://api.nuget.org/v3/index.json" />
+              </packageSources>
+              <packageSourceMapping>
+                <packageSource key="local"><package pattern="PinguApps.BlazorContentContracts*" /></packageSource>
+                <packageSource key="graph"><package pattern="Components" /><package pattern="Wrappers" /></packageSource>
+                <packageSource key="framework">
+                  <package pattern="Microsoft.NETCore.App.Ref" />
+                  <package pattern="Microsoft.AspNetCore.App.Ref" />
+                  <package pattern="Microsoft.WindowsDesktop.App.Ref" />
+                </packageSource>
+              </packageSourceMapping>
+            </configuration>
+            """);
         var framework = Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0";
         File.WriteAllText(Path.Combine(directory, "global.json"),
-            framework == "net10.0" && mode != "multi" ? """{"sdk":{"version":"10.0.403","rollForward":"latestPatch"}}"""
+            framework == "net10.0" && mode is not ("multi" or "downloaded packs") ? """{"sdk":{"version":"10.0.403","rollForward":"latestPatch"}}"""
                 : """{"sdk":{"version":"11.0.100","rollForward":"latestPatch"}}""");
         var reference = $"<PackageReference Include=\"{Package}\" Version=\"1.0.0\" />";
 
@@ -54,7 +72,7 @@ internal sealed class PackageActivationFixture : IDisposable
             reference += $"<PackageReference Include=\"{Package}.Analyzers\" Version=\"{(mode == "version" ? "1.0.1" : "1.0.0")}\" PrivateAssets=\"all\" />";
         }
 
-        Project("Consumer", mode == "multi" ? "net10.0;net11.0" : framework, reference);
+        Project("Consumer", mode is "multi" or "downloaded packs" ? "net10.0;net11.0" : framework, reference);
         File.WriteAllText(Path.Combine(directory, "Consumer", "Invalid.razor"),
             "<Slot>forbidden</Slot>");
         File.WriteAllText(Path.Combine(directory, "Consumer", "Slot.cs"), """
@@ -76,11 +94,17 @@ internal sealed class PackageActivationFixture : IDisposable
     private void Project(string name, string framework, string references)
     {
         var path = Directory.CreateDirectory(Path.Combine(directory, name)).FullName;
+        var targetingPacks = mode == "downloaded packs" ? $$"""
+            <NetCoreTargetingPackRoot>{{Path.Combine(directory, "targeting-packs")}}</NetCoreTargetingPackRoot>
+            <PrunePackageTargetingPackRoots>$(NetCoreRoot)/packs</PrunePackageTargetingPackRoots>
+            """ : "";
+
         File.WriteAllText(Path.Combine(path, name + ".csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk.Razor">
               <PropertyGroup>
                 <TargetFrameworks>{{framework}}</TargetFrameworks>
                 <RestorePackagesPath>{{directory}}/packages</RestorePackagesPath>
+                {{targetingPacks}}
                 <BlazorContentContractsEnabled>{{(mode == "opt-out" ? "false" : "true")}}</BlazorContentContractsEnabled>
               </PropertyGroup>
               <ItemGroup>
@@ -118,7 +142,14 @@ internal sealed class PackageActivationFixture : IDisposable
             Assert.Equal(enabled ? 1 : 0, File.ReadAllLines(record).Count(line => line.EndsWith(Package + ".Analyzers.dll", StringComparison.Ordinal)));
         }
 
-        Assert.NotEmpty(Directory.GetFiles(Path.Combine(directory, "Consumer"), "analyzers-*.txt"));
+        Assert.Equal(mode is "multi" or "downloaded packs" ? 2 : 1,
+            Directory.GetFiles(Path.Combine(directory, "Consumer"), "analyzers-*.txt").Length);
+
+        if (mode == "downloaded packs")
+        {
+            Assert.True(Directory.Exists(Path.Combine(directory, "packages", "microsoft.netcore.app.ref")));
+            Assert.True(Directory.Exists(Path.Combine(directory, "packages", "microsoft.aspnetcore.app.ref")));
+        }
     }
 
     private void Run(string project, params string[] arguments)

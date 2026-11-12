@@ -13,6 +13,7 @@ Feature: Automatic package activation
       | project          | enabled |
       | central          | enabled |
       | multi            | enabled |
+      | downloaded packs | enabled |
       | duplicate        | enabled |
       | version          | enabled |
       | opt-out          | disabled |
