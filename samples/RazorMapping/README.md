@@ -23,7 +23,9 @@ The current slice matches exact/base types, open and closed generic families, in
 
 Razor's generated C# supplies a `#pragma checksum` identifying the original file,
 but static component tags have no individual `#line` mapping in SDK 11.0.100.
-Consumers must explicitly include Razor sources as `AdditionalFiles` (see sample).
+Package consumers receive Razor sources as `AdditionalFiles` automatically; see
+[package activation](../../docs/package-activation.md) for asset policies and opt-outs.
+This historical sample retains explicit inclusion to illustrate the mapping seam.
 The analyzer reads those snapshots through Roslyn, with cancellation, rather than
 reading files from disk. That original text also retains the package's
 `bcc-suppress-next` Razor comments for one-usage suppression (see the root README).

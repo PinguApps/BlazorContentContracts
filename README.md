@@ -173,8 +173,9 @@ content remain checked. A comment before a container does not exempt its nested
 expressions. Comments add no runtime components and do not change rendering.
 Malformed directives report BCC007; valid directives that suppress nothing report
 BCC008 at the comment. Missing or ambiguous source mapping leaves the suppression
-unused rather than exempting a broader region. Explicit Razor `AdditionalFiles`
-setup is still required. Standard C# suppression/configuration remains available
+unused rather than exempting a broader region. Package consumers receive Razor
+`AdditionalFiles` automatically; see [package activation](docs/package-activation.md)
+for asset policies and opt-outs. Standard C# suppression/configuration remains available
 for diagnostics with C# locations; a C# pragma does not cover an external Razor
 diagnostic span.
 
