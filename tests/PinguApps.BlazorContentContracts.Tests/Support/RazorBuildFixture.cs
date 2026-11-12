@@ -12,6 +12,26 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class RazorBuildFixture : IDisposable
 {
+    public void GivenAdoption(string change)
+    {
+        GivenConsumer("empty");
+        File.Delete(Path.Combine(directory, "Slot.cs"));
+        var source = Path.Combine(RepositoryRoot(), "samples", "Adoption");
+
+        foreach (var file in Directory.GetFiles(source).Where(file => file.EndsWith(".razor", StringComparison.Ordinal) || file.EndsWith(".cs", StringComparison.Ordinal)))
+        {
+            File.Copy(file, Path.Combine(directory, Path.GetFileName(file)), overwrite: true);
+        }
+
+        var project = Path.Combine(directory, "Consumer.csproj");
+        File.WriteAllText(project, File.ReadAllText(project).Replace("<PropertyGroup>", "<PropertyGroup><RootNamespace>Adoption</RootNamespace>", StringComparison.Ordinal));
+
+        if (change == "invalid descendant")
+        {
+            File.WriteAllText(Path.Combine(directory, "Usage.razor"), "<HtmlSlot><span><div /></span></HtmlSlot>");
+        }
+    }
+
     public void ThenOutputContains(string text)
     {
         Assert.Contains(text, output);

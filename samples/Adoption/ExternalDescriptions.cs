@@ -1,5 +1,4 @@
 using System;
-using Microsoft.AspNetCore.Components;
 using PinguApps.BlazorContentContracts;
 
 // A consumer-owned assertion for a referenced component. This replaces its

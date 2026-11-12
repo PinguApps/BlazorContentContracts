@@ -76,6 +76,17 @@ last normal build. Summary publication can perform a second build pass, includin
 post-build events. Generated CompiledContent/CompiledForwarding attributes are
 not hand-authored output declarations.
 
+[ExternalDescriptions.cs](../samples/Adoption/ExternalDescriptions.cs) illustrates
+a consumer-owned trusted promise for a SectionOutlet used by this sample. It is
+only valid if the application owner guarantees that every source of that section
+emits span/text. The analyzer cannot match section producers to outlets; do not
+copy this assertion without that review. External mappings replace the whole
+author/generated pair for the exact referenced target, apply only in the current
+consumer, and never inherit to derived types. Nonempty claims require Trusted.
+Use ExternalForwarding alongside ExternalContent to name every emitted fragment
+slot of an external wrapper; include default/alternative output in the fixed union.
+See the schema's concrete assembly-attribute example and precedence rules.
+
 ## Unknown output and mutation
 
 Invalid means the analyzer found output that contradicts the contract. Unknown
