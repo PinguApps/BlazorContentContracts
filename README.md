@@ -1,6 +1,8 @@
 # PinguApps.BlazorContentContracts
 
-Planned build-time checking of Blazor component content contracts. Component authors will describe permitted components, HTML elements and text; analyzers will check Razor usage, wrappers and forwarded fragments.
+Build-time checking of Blazor component content contracts. Component authors describe permitted components, HTML elements and text; analyzers check Razor usage, wrappers and forwarded fragments.
+
+Start with the [adoption guide](docs/adoption.md) and [buildable Razor examples](samples/Adoption). They cover permissions, wrappers, output declarations, framework behaviour, uncertainty and local suppression. Checking provides no runtime or security guarantee. No public NuGet release exists yet; use repository artifacts.
 
 The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. Restricted slots analyse local wrapper output at original Razor usage spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
 
@@ -126,6 +128,8 @@ activation remain separate release work.
 | BCC009 | Error | Declared or inferred compiled output, or forwarded parameter permissions, exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
 | BCC010 | Error | Known implementation output or storage write contradicts its ProducesContent or AllowedChildren declaration. |
 | BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
+| BCC012 | Warning | Recursive wrapper or fragment output; break the cycle or declare an accurate output contract. |
+| BCC013 | Warning | Analysis depth or work limit reached; simplify output or declare an accurate output contract. |
 | BCC014 | Warning | Compiled summary or annotation identity/version is incompatible; rebuild with supported annotations or declare output explicitly. |
 | BCC015 | Error | Invalid or conflicting external component description; correct the target/slots or explicitly acknowledge trusted output. |
 

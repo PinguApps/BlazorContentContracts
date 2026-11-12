@@ -10,6 +10,12 @@ public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
 
+    [Given("the adoption samples with {string}")]
+    public void GivenAdoption(string change)
+    {
+        fixture.GivenAdoption(change);
+    }
+
     [Given("the suppression action has acknowledged the first of two unknown fragments beside invalid content")]
     public async Task GivenCodeFix()
     {

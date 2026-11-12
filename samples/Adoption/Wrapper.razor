@@ -1,0 +1,7 @@
+@attribute [ProducesContent]
+@attribute [ForwardsContent(nameof(ChildContent))]
+@ChildContent
+@code {
+    [Parameter, AllowedChildren(typeof(Row<>))]
+    public RenderFragment? ChildContent { get; set; }
+}

@@ -49,8 +49,8 @@ Remove overlaps rather than relying on source order. Forwarding requires one
 An open target cannot pair with a closed forwarding target. A target/type typo produces the normal
 C# compiler error. New diagnostics are tracked directly in Shipped.
 
-The built-in framework catalogue is separate work (PIN-1263); these rules do not
-introduce framework exemptions or claim that catalogue has been implemented.
+The [built-in framework catalogue](framework-catalogue.md) separately describes
+qualified .NET 10/11 output. External descriptions keep the precedence above.
 
 ## Library author declarations
 
@@ -137,15 +137,15 @@ they imply no runtime enforcement.
 Implicit/named slots and typed template bodies receive their parameter's contract.
 All conditional/switch branches and loop bodies are inspected regardless of runtime data.
 Block-bodied inline fragment lambdas and local fragment initializers are expanded at emission sites; arbitrary
-assignment/alias tracking remains later work. Inspectable local component render methods
+assignment/alias tracking follows the conservative [mutation model](adoption.md#unknown-output-and-mutation). Inspectable local component render methods
 are expanded recursively, binding every emitted fragment parameter to its consumer input.
 Unused templates and templates passed beneath an allowed terminal component do not
 contribute local output. All possible output branches are checked. Proven-empty local
 components are accepted; unavailable or unsupported implementations produce BCC006,
 including opaque fragment factories. Constructors and lifecycle methods are never executed.
 Wrapper findings point to the consumer usage and include the wrapper/template path.
-Recursive or excessively deep wrapper expansion conservatively reports BCC006;
-specialised limit diagnostics remain future work.
+Recursive wrapper expansion reports BCC012; depth/operation limits report BCC013.
+Both include actionable messages and preserve independent known violations.
 Expression-bodied builder lambdas in slot attributes are not inspected by this slice. Non-emitting lambdas, reference captures, keys and events add no output findings.
 Constant text expressions are checked without
 executing code. Explicit compiled ProducesContent declarations are consumed at call

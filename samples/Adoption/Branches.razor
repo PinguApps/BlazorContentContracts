@@ -1,0 +1,24 @@
+<Slot />
+<Slot><Row T="int" /><Row T="string" /></Slot>
+<DerivedSlot><Row T="int" /></DerivedSlot>
+<Slot><Wrapper><Row T="int" /></Wrapper></Slot>
+<HtmlSlot><span>Visible <strong>nested text</strong></span></HtmlSlot>
+<Slot>
+    @if (DateTime.UtcNow.Second % 2 == 0)
+    {
+        <Row T="int" />
+    }
+    else
+    {
+        <Row T="string" />
+    }
+    @foreach (var value in new[] { 1, 2 })
+    {
+        <Row T="int" />
+    }
+    @Create()
+</Slot>
+@code {
+    [ProducesContent(typeof(Row<int>))]
+    private RenderFragment Create() => @<Row T="int" />;
+}

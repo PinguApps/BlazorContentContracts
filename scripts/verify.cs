@@ -42,7 +42,7 @@ try
 
     Run(root, "test", "-c", "Release", "--no-build");
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RunnableAdoptionExamples|FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
