@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using PinguApps.BlazorContentContracts.Tests.Support;
 using Reqnroll;
 
@@ -8,6 +9,36 @@ namespace PinguApps.BlazorContentContracts.Tests.Steps;
 public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
+
+    [Given("the suppression action has acknowledged the first of two unknown fragments beside invalid content")]
+    public async Task GivenCodeFix()
+    {
+        fixture.GivenComposition(await RazorCodeFixFixture.ApplyAsync());
+    }
+
+    [Given("editor diagnostic locations are requested")]
+    public void GivenEditorLocations()
+    {
+        fixture.GivenEditorLocations();
+    }
+
+    [When("a normal build follows editor analysis")]
+    public void WhenNormalBuildFollowsEditorAnalysis()
+    {
+        fixture.WhenNormalBuildFollowsEditorAnalysis();
+    }
+
+    [Then("the normal diagnostic uses Razor and the editor configuration remains intact")]
+    public void ThenEditorConfigurationPersists()
+    {
+        fixture.ThenEditorConfigurationPersists();
+    }
+
+    [Then("the diagnostic targets the generated component identifier for editor mapping")]
+    public void ThenEditorLocations()
+    {
+        fixture.ThenEditorLocations();
+    }
 
     [Then("the Razor build explains {string}")]
     public void ThenOutputContains(string text)

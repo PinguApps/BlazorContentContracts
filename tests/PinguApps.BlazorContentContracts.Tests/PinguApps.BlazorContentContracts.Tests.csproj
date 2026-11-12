@@ -11,7 +11,9 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <ProjectReference Include="../../src/PinguApps.BlazorContentContracts/PinguApps.BlazorContentContracts.csproj" />
     <ProjectReference Include="../../src/PinguApps.BlazorContentContracts.Analyzers/PinguApps.BlazorContentContracts.Analyzers.csproj" />
+    <ProjectReference Include="../../src/PinguApps.BlazorContentContracts.CodeFixes/PinguApps.BlazorContentContracts.CodeFixes.csproj" />
   </ItemGroup>
 </Project>

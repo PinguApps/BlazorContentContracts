@@ -55,6 +55,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
     private static void Analyze(SemanticModelAnalysisContext context)
     {
+        Action<Diagnostic> reportDiagnostic = context.ReportDiagnostic;
         var tree = context.SemanticModel.SyntaxTree;
         var root = tree.GetRoot(context.CancellationToken);
         var checksum = root.GetLeadingTrivia().Select(trivia => trivia.GetStructure())
@@ -78,6 +79,53 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             .Where(call => !InInferenceHelper(call) && IsBuilderCall(call, "OpenComponent", context.SemanticModel, context.CancellationToken))
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
+
+        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.BlazorContentContractsEditor", out var editorAnalysis)
+            && string.Equals(editorAnalysis, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            var reportOriginal = reportDiagnostic;
+            reportDiagnostic = diagnostic =>
+            {
+                var original = diagnostic.Location;
+                Location? editorLocation = null;
+
+                foreach (var call in opens)
+                {
+                    if (locations.TryGetValue(call.SpanStart, out var mapped) && mapped.SourceSpan == original.SourceSpan
+                        && call.Expression is MemberAccessExpressionSyntax { Name: GenericNameSyntax generic })
+                    {
+                        var type = generic.TypeArgumentList.Arguments[0];
+                        var name = type is QualifiedNameSyntax qualified ? qualified.Right
+                            : type is AliasQualifiedNameSyntax alias ? alias.Name : type as SimpleNameSyntax;
+                        editorLocation = name == null ? null : Location.Create(tree, name.Identifier.Span);
+                        break;
+                    }
+                }
+
+                if (editorLocation == null)
+                {
+                    editorLocation = root.DescendantNodes().OfType<ExpressionSyntax>()
+                        .Where(node => OriginalSpan(node.GetLocation(), source, file.Path) == original.SourceSpan)
+                        .OrderBy(node => node.Span.Length).FirstOrDefault()?.GetLocation();
+                }
+
+                if (editorLocation == null)
+                {
+                    reportOriginal(diagnostic);
+                    return;
+                }
+
+                var descriptor = diagnostic.Descriptor;
+                var editorDescriptor = new DiagnosticDescriptor(descriptor.Id, descriptor.Title, "{0}", descriptor.Category,
+                    descriptor.DefaultSeverity, descriptor.IsEnabledByDefault, descriptor.Description, descriptor.HelpLinkUri,
+                    descriptor.CustomTags.ToArray());
+                var properties = diagnostic.Properties.SetItem("bcc_path", file.Path)
+                    .SetItem("bcc_start", original.SourceSpan.Start.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .SetItem("bcc_length", original.SourceSpan.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                reportOriginal(Diagnostic.Create(editorDescriptor, editorLocation, new[] { original }, properties, diagnostic.GetMessage()));
+            };
+        }
+
         // SDK 11 emits @code members in a separate partial declaration tree.
         var sourceRoots = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
             .SelectMany(declaration => context.SemanticModel.GetDeclaredSymbol(declaration, context.CancellationToken)?.DeclaringSyntaxReferences
@@ -594,7 +642,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                                     if (location == null || !suppressions.Suppresses("BCC004", location, source))
                                     {
-                                        context.ReportDiagnostic(Diagnostic.Create(UnknownMarkup, location ?? fallback, owner.Name, parameter));
+                                        reportDiagnostic(Diagnostic.Create(UnknownMarkup, location ?? fallback, owner.Name, parameter));
                                     }
                                 }
                                 else
@@ -651,7 +699,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
 
                         if (incompatible)
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidForwarding, outputLocation,
+                            reportDiagnostic(Diagnostic.Create(InvalidForwarding, outputLocation,
                                 symbol.ToDisplayString(), owner.Name, parameter));
                         }
                     }
@@ -663,7 +711,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                         if (reportedBounds.Add(rule.Id))
                         {
                             var reason = recursive ? detail : "maximum depth " + AnalysisTraversal.MaximumDepth + " or expansion work " + AnalysisTraversal.MaximumWork + " exceeded (" + detail + ")";
-                            context.ReportDiagnostic(Diagnostic.Create(rule, outputLocation, owner.Name, parameter, reason));
+                            reportDiagnostic(Diagnostic.Create(rule, outputLocation, owner.Name, parameter, reason));
                         }
                     }
 
@@ -681,7 +729,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                             return;
                         }
 
-                        context.ReportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason + (outputPath.Length == 0 ? "" : " (via " + outputPath + ")")));
+                        reportDiagnostic(Diagnostic.Create(UnknownOutput, location ?? fallback, owner.Name, parameter, reason + (outputPath.Length == 0 ? "" : " (via " + outputPath + ")")));
                         reportedUnknown = true;
                     }
 
@@ -718,7 +766,7 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     {
                         if (!names.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "HTML element '" + name + "'" + PathSuffix(), owner.Name, parameter));
+                            reportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "HTML element '" + name + "'" + PathSuffix(), owner.Name, parameter));
                         }
                     }
 
@@ -726,14 +774,14 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
                     {
                         if (!allowText && !string.IsNullOrWhiteSpace(text))
                         {
-                            context.ReportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "Visible text" + PathSuffix(), owner.Name, parameter));
+                            reportDiagnostic(Diagnostic.Create(InvalidMarkup, outputLocation, "Visible text" + PathSuffix(), owner.Name, parameter));
                         }
                     }
                 }
             }
         }
 
-        suppressions.Report(context.ReportDiagnostic);
+        suppressions.Report(reportDiagnostic);
     }
 
     internal static bool IsFragment(ITypeSymbol type)
