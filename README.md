@@ -128,6 +128,8 @@ activation remain separate release work.
 | BCC009 | Error | Declared or inferred compiled output, or forwarded parameter permissions, exceed the receiving contract; narrow the source permissions or widen the receiver deliberately. |
 | BCC010 | Error | Known implementation output or storage write contradicts its ProducesContent or AllowedChildren declaration. |
 | BCC011 | Warning | Declared implementation output is opaque; inspect it or acknowledge uncertainty locally with a C# pragma. |
+| BCC012 | Warning | Recursive wrapper or fragment output; break the cycle or declare an accurate output contract. |
+| BCC013 | Warning | Analysis depth or work limit reached; simplify output or declare an accurate output contract. |
 | BCC014 | Warning | Compiled summary or annotation identity/version is incompatible; rebuild with supported annotations or declare output explicitly. |
 | BCC015 | Error | Invalid or conflicting external component description; correct the target/slots or explicitly acknowledge trusted output. |
 
