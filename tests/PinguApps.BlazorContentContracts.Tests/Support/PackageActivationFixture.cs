@@ -129,6 +129,7 @@ internal sealed class PackageActivationFixture : IDisposable
         {
             WorkingDirectory = Path.Combine(directory, project),
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
@@ -138,7 +139,15 @@ internal sealed class PackageActivationFixture : IDisposable
             start.ArgumentList.Add(argument);
         }
 
+        foreach (var name in start.Environment.Keys.Where(name => name.StartsWith("MSBUILD", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("DOTNET_MSBUILD_SDK_RESOLVER_", StringComparison.OrdinalIgnoreCase)).ToArray())
+        {
+            start.Environment.Remove(name);
+        }
+
         start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
+        start.Environment["DOTNET_HOST_PATH"] = dotnet;
+        start.Environment["DOTNET_ROOT"] = Path.GetDirectoryName(dotnet)!;
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -149,7 +158,8 @@ internal sealed class PackageActivationFixture : IDisposable
             throw new TimeoutException("Package activation build exceeded two minutes.");
         }
 
-        output = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
+        output = stdout.WaitAsync(TimeSpan.FromSeconds(120)).GetAwaiter().GetResult()
+            + stderr.WaitAsync(TimeSpan.FromSeconds(120)).GetAwaiter().GetResult();
         exitCode = process.ExitCode;
     }
 
