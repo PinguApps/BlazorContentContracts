@@ -80,8 +80,8 @@ public sealed class ContentContractAnalyzer : DiagnosticAnalyzer
             .ToArray();
         var locations = MapTags(source, file!.Path, opens, context.SemanticModel, context.CancellationToken);
 
-        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.DesignTimeBuild", out var designTime)
-            && string.Equals(designTime, "true", StringComparison.OrdinalIgnoreCase))
+        if (context.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.BlazorContentContractsEditor", out var editorAnalysis)
+            && string.Equals(editorAnalysis, "true", StringComparison.OrdinalIgnoreCase))
         {
             var reportOriginal = reportDiagnostic;
             reportDiagnostic = diagnostic =>

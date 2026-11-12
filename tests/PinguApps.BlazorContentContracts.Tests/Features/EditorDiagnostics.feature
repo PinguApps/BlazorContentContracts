@@ -5,6 +5,8 @@ Feature: Editor diagnostics use Razor's generated source mappings
         And editor diagnostic locations are requested
         When the real Razor SDK builds the consumer
         Then the diagnostic targets the generated component identifier for editor mapping
+        When a normal build follows editor analysis
+        Then the normal diagnostic uses Razor and the editor configuration remains intact
 
     Scenario: The suppression action preserves sibling and invalid-content checks
         Given the suppression action has acknowledged the first of two unknown fragments beside invalid content

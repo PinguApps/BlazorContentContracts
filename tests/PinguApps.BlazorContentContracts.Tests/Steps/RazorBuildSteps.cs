@@ -22,6 +22,18 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.GivenEditorLocations();
     }
 
+    [When("a normal build follows editor analysis")]
+    public void WhenNormalBuildFollowsEditorAnalysis()
+    {
+        fixture.WhenNormalBuildFollowsEditorAnalysis();
+    }
+
+    [Then("the normal diagnostic uses Razor and the editor configuration remains intact")]
+    public void ThenEditorConfigurationPersists()
+    {
+        fixture.ThenEditorConfigurationPersists();
+    }
+
     [Then("the diagnostic targets the generated component identifier for editor mapping")]
     public void ThenEditorLocations()
     {

@@ -1,5 +1,13 @@
 <Project>
   <Target Name="BlazorContentContractsConfigureAnalysis" BeforeTargets="CoreCompile">
+    <WriteLinesToFile File="$(IntermediateOutputPath)bcc-editor.globalconfig"
+                      Lines="is_global = true;build_property.BlazorContentContractsEditor = true"
+                      Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Condition="'$(DesignTimeBuild)' == 'true' and '$(BlazorContentContractsEnabled)' != 'false'" />
+    <ItemGroup Condition="'$(DesignTimeBuild)' == 'true' and '$(BlazorContentContractsEnabled)' != 'false'">
+      <EditorConfigFiles Include="$(IntermediateOutputPath)bcc-editor.globalconfig" />
+      <FileWrites Include="$(IntermediateOutputPath)bcc-editor.globalconfig" />
+    </ItemGroup>
     <ItemGroup>
       <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.Analyzers' or '%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.CodeFixes'" />
       <Analyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/cs/PinguApps.BlazorContentContracts.Analyzers.dll" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
@@ -13,7 +21,6 @@
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="BlazorContentContractsPublishSummaries" />
-    <CompilerVisibleProperty Include="DesignTimeBuild" />
   </ItemGroup>
 
   <Target Name="BlazorContentContractsReadRazor" BeforeTargets="CoreCompile"
