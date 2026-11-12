@@ -170,6 +170,12 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.ThenUnknown(unknown, invalid);
     }
 
+    [Then("EditForm output has {int} definite violations and version-specific uncertainty")]
+    public void ThenEditForm(int invalid)
+    {
+        fixture.ThenUnknown(Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") == "net10.0" ? 0 : 1, invalid);
+    }
+
     [Then("unresolved output is an error")]
     public void ThenUnknownError()
     {

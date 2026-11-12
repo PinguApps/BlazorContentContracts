@@ -34,6 +34,8 @@ HTML element names. The allowed kind values are:
 | `empty` | No local output. |
 | `relocated` | Content renders outside the local receiving slot. |
 | `parameter-dependent` | Parameters influence output; a family-specific evaluator is required. |
+| `conditional-elements-unresolved` | Known elements and slots plus additional unresolved ambient output. |
+| `conditional-elements` | Fixed possible HTML output and forwarded slots; runtime conditions may omit elements. |
 | `unresolved` | The description is incomplete; keep local output unknown. |
 
 This schema does not encode text, parameter values, branch conditions or complete
@@ -52,8 +54,7 @@ alternative `ChildContent`), `NotAuthorized` and `Authorizing` fragment is check
 regardless of the current authentication state. Omitted fragments emit nothing.
 `Authorized` and `ChildContent` must not both be supplied: the framework rejects
 that combination at runtime, even though Razor can compile it. This analyzer checks
-output contracts and does not validate framework parameter combinations. Other
-description kinds grant no transparency yet, except Virtualize (described below) and ErrorBoundary defaults: both supplied
+output contracts and does not validate framework parameter combinations. Virtualize (described below) and ErrorBoundary defaults are active: both supplied
 `ChildContent` and typed `ErrorContent` are checked; omitted `ErrorContent` adds the
 framework default empty `div`. An explicitly empty error template replaces that default.
 Allowed HTML still has its descendants checked; explicitly allowed ErrorBoundary
@@ -97,3 +98,29 @@ are checked as possible output. Allowed Virtualize types remain terminal.
 These rules follow the .NET 10 Virtualize implementation and .NET 11 source:
 https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Virtualization/Virtualize.cs
 https://github.com/dotnet/aspnetcore/blob/main/src/Components/Web/src/Virtualization/Virtualize.cs
+
+PageTitle, HeadContent and SectionContent are active relocated-output boundaries:
+their contents are not validated at the declaration location. DataAnnotationsValidator
+is empty locally. These classifications make no claim about valid parameters,
+required cascading services or side effects. SectionOutlet and HeadOutlet remain
+unknown without an explicit output contract; no section matching is attempted.
+
+EditForm checks ChildContent plus possible `form` and SSR antiforgery `input`.
+AntiforgeryToken may emit `input` when a request token is available, or nothing.
+FocusOnNavigate emits `blazor-focus-on-navigate` during static rendering and no
+HTML with an assigned interactive render mode. Analysis conservatively checks the
+union of these possible outputs; it does not infer ambient render modes/services.
+Allow the possible elements or establish an explicit output contract. Explicitly
+allowed component types remain terminal boundaries. Known forbidden output is
+reported even alongside unknown outlets. No new diagnostic is introduced.
+
+Implementation sources (the .NET 11 addition is described below):
+- https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Forms/EditForm.cs
+- https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Forms/AntiforgeryToken.cs
+- https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Routing/FocusOnNavigate.cs
+
+.NET 11 EditForm also renders ClientValidationData, whose ClientValidationProvider
+can return arbitrary fragments. Its `conditional-elements-unresolved` description
+therefore preserves known element/child violations and additionally reports BCC006.
+.NET 10 has no such provider output. Source:
+https://github.com/dotnet/aspnetcore/blob/v11.0.0/src/Components/Web/src/Forms/ClientValidation/ClientValidationData.cs
