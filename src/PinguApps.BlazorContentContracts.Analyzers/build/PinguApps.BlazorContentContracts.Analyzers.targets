@@ -1,8 +1,9 @@
 <Project>
   <Target Name="BlazorContentContractsConfigureAnalysis" BeforeTargets="CoreCompile">
     <ItemGroup>
-      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.Analyzers'" />
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.Analyzers' or '%(Analyzer.Filename)' == 'PinguApps.BlazorContentContracts.CodeFixes'" />
       <Analyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/cs/PinguApps.BlazorContentContracts.Analyzers.dll" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
+      <Analyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/cs/PinguApps.BlazorContentContracts.CodeFixes.dll" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
       <AdditionalFiles Include="@(RazorComponent);@(RazorGenerate)" Condition="'$(BlazorContentContractsEnabled)' != 'false'" />
     </ItemGroup>
   </Target>

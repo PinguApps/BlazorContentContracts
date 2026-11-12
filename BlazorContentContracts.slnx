@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/PinguApps.BlazorContentContracts.CodeFixes/PinguApps.BlazorContentContracts.CodeFixes.csproj" />
     <Project Path="src/PinguApps.BlazorContentContracts/PinguApps.BlazorContentContracts.csproj" />
     <Project Path="src/PinguApps.BlazorContentContracts.Analyzers/PinguApps.BlazorContentContracts.Analyzers.csproj" />
   </Folder>

@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using PinguApps.BlazorContentContracts.Tests.Support;
 using Reqnroll;
 
@@ -8,6 +9,12 @@ namespace PinguApps.BlazorContentContracts.Tests.Steps;
 public sealed class RazorBuildSteps : IDisposable
 {
     private readonly RazorBuildFixture fixture = new();
+
+    [Given("the suppression action has acknowledged the first of two unknown fragments beside invalid content")]
+    public async Task GivenCodeFix()
+    {
+        fixture.GivenComposition(await RazorCodeFixFixture.ApplyAsync());
+    }
 
     [Given("editor diagnostic locations are requested")]
     public void GivenEditorLocations()
