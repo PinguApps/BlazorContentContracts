@@ -16,7 +16,7 @@ Real Razor scenarios also run with SDK 10.0.403 targeting .NET 10. Install both 
 
 Both packages target `netstandard2.0`; repository tests and samples target .NET 11. The annotation package has no Roslyn dependency. The analyzer package carries its
 assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
-assets. Automatic transitive activation remains later work; Razor diagnostics require explicit additional-source setup.
+assets. Installing the annotation package activates checking automatically, including through library packages and project references. See [package activation](docs/package-activation.md) for asset policy and opt-outs.
 Allowed components match symbols, base classes and open or closed generic families, and stop expansion. Local wrappers are expanded recursively; proven-empty components pass and unavailable implementations warn. HTML containers and their descendants are checked independently of text permission; BCC005 rejects forbidden HTML/text and BCC004 warns for opaque markup. Add future rules directly to
 `AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
 retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.

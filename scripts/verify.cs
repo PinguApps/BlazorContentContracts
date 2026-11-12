@@ -38,9 +38,11 @@ try
 
     Run(root, "pack", "-c", "Release", "--no-build", "-o", output);
 
+    Run(root, "pack", "src/PinguApps.BlazorContentContracts.Analyzers", "-c", "Release", "--no-build", "-p:Version=1.0.1", "-o", output);
+
     Run(root, "test", "-c", "Release", "--no-build");
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
@@ -90,8 +92,18 @@ try
 
         if (package.EndsWith(".Analyzers", StringComparison.Ordinal))
         {
+            Require(names.Contains("buildTransitive/" + package + ".targets"), "Missing transitive build assets.");
+            Require(!metadata.Descendants().Any(element => element.Name.LocalName == "dependency"), "Analyzer package has runtime dependencies.");
             Require(!names.Any(name => name.StartsWith("lib/", StringComparison.Ordinal)), $"{package}: unexpected runtime assets");
         }
+    }
+
+    using (var annotations = ZipFile.OpenRead(Path.Combine(output, prefix + ".1.0.0.nupkg")))
+    {
+        using var manifest = annotations.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
+        Require(XDocument.Load(manifest).Descendants().Any(element => element.Name.LocalName == "dependency"
+            && (string?)element.Attribute("id") == prefix + ".Analyzers" && (string?)element.Attribute("include") == "All"),
+            "Annotation package must carry the analyzer and transitive build assets.");
     }
 
     var tracking = Path.Combine(root, "src", prefix + ".Analyzers");
@@ -125,7 +137,6 @@ try
               <PropertyGroup><TargetFramework>net11.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
               <ItemGroup>
                 <PackageReference Include="{{prefix}}" Version="1.0.0" />
-                <PackageReference Include="{{prefix}}.Analyzers" Version="1.0.0" />
               </ItemGroup>
               <Target Name="RecordAnalyzers" AfterTargets="CoreCompile">
                 <WriteLinesToFile File="analyzers.txt" Lines="@(Analyzer)" Overwrite="true" />

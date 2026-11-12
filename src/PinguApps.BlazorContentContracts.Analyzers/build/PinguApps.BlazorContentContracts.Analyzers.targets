@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <Target Name="BlazorContentContractsReadRazor" BeforeTargets="CoreCompile"
-          Condition="'$(BlazorContentContractsSummaryPass)' == 'true'">
+          Condition="'$(BlazorContentContractsEnabled)' != 'false' and '$(BlazorContentContractsSummaryPass)' == 'true'">
     <WriteLinesToFile File="$(IntermediateOutputPath)bcc-summary-pass.cs" Lines="// Content summary publication pass" Overwrite="true" />
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)bcc-summary-pass.cs" />

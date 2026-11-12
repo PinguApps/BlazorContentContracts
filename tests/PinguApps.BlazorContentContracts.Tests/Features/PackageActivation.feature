@@ -17,4 +17,3 @@ Feature: Automatic package activation
       | version          | enabled |
       | opt-out          | disabled |
       | private          | disabled |
-

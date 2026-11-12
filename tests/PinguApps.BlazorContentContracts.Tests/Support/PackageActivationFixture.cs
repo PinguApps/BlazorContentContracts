@@ -24,7 +24,7 @@ internal sealed class PackageActivationFixture : IDisposable
             $"<configuration><packageSources><clear /><add key=\"local\" value=\"{packages}\" /><add key=\"graph\" value=\"{directory}\" /></packageSources></configuration>");
         var framework = Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0";
         File.WriteAllText(Path.Combine(directory, "global.json"),
-            framework == "net10.0" ? """{"sdk":{"version":"10.0.403","rollForward":"latestPatch"}}"""
+            framework == "net10.0" && mode != "multi" ? """{"sdk":{"version":"10.0.403","rollForward":"latestPatch"}}"""
                 : """{"sdk":{"version":"11.0.100","rollForward":"latestPatch"}}""");
         var reference = $"<PackageReference Include=\"{Package}\" Version=\"1.0.0\" />";
 
@@ -110,6 +110,11 @@ internal sealed class PackageActivationFixture : IDisposable
 
         foreach (var record in Directory.GetFiles(Path.Combine(directory, "Consumer"), "analyzers-*.txt"))
         {
+            if (mode == "version")
+            {
+                Assert.Contains(File.ReadAllLines(record), line => line.Replace('\\', '/').Contains("/1.0.1/analyzers/", StringComparison.Ordinal));
+            }
+
             Assert.Equal(enabled ? 1 : 0, File.ReadAllLines(record).Count(line => line.EndsWith(Package + ".Analyzers.dll", StringComparison.Ordinal)));
         }
 

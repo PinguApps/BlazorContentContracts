@@ -39,7 +39,7 @@ initializers are inspected when emitted; unused lambdas and event/reference capt
 emit content. Allowed components remain terminal boundaries. Wrapper output and fragment
 assignment/alias tracking remain later work. Named slot tags can cause the conservative
 mapper to use its fallback location.
-Automatic transitive activation and automatic source inclusion remain later work.
+Package consumers now receive automatic activation and Razor source inclusion; see [package activation](../../docs/package-activation.md). This historical mapping sample retains explicit setup to show the original diagnostic seam.
 
 ## Support evidence
 
