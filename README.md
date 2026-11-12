@@ -1,6 +1,8 @@
 # PinguApps.BlazorContentContracts
 
-Planned build-time checking of Blazor component content contracts. Component authors will describe permitted components, HTML elements and text; analyzers will check Razor usage, wrappers and forwarded fragments.
+Build-time checking of Blazor component content contracts. Component authors describe permitted components, HTML elements and text; analyzers check Razor usage, wrappers and forwarded fragments.
+
+Start with the [adoption guide](docs/adoption.md) and [buildable Razor examples](samples/Adoption). They cover permissions, wrappers, output declarations, framework behaviour, uncertainty and local suppression. Checking provides no runtime or security guarantee. No public NuGet release exists yet; use repository artifacts.
 
 The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. Restricted slots analyse local wrapper output at original Razor usage spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
 

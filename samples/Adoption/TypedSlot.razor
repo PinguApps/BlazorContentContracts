@@ -1,0 +1,5 @@
+@Template(1)
+@code {
+    [Parameter, AllowedChildren(typeof(Row<int>))]
+    public RenderFragment<int> Template { get; set; } = _ => _ => { };
+}

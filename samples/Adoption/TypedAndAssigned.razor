@@ -1,0 +1,10 @@
+<TypedSlot><Template Context="value"><Row T="int" /></Template></TypedSlot>
+<Slot>@content</Slot>
+@code {
+    private RenderFragment content = @<Row T="int" />;
+
+    protected override void OnInitialized()
+    {
+        content = @<Row T="string" />;
+    }
+}

@@ -1,0 +1,29 @@
+<Slot>
+    <CascadingValue Value="1"><Row T="int" /></CascadingValue>
+    <CascadingAuthenticationState><Row T="int" /></CascadingAuthenticationState>
+    <InputRadioGroup TValue="int"><Row T="int" /></InputRadioGroup>
+    <FormMappingScope Name="example"><Row T="int" /></FormMappingScope>
+    <AuthorizeView>
+        <Authorized><Row T="int" /></Authorized>
+        <NotAuthorized><Row T="string" /></NotAuthorized>
+        <Authorizing><Row T="int" /></Authorizing>
+    </AuthorizeView>
+    <ErrorBoundary>
+        <ChildContent><Row T="int" /></ChildContent>
+        <ErrorContent><Row T="string" /></ErrorContent>
+    </ErrorBoundary>
+    <HeadContent><title>Relocated output</title></HeadContent>
+    <PageTitle>Relocated title</PageTitle>
+    <DataAnnotationsValidator />
+</Slot>
+<HtmlSlot>
+    <Virtualize Items="items" SpacerElement="span" Context="item">
+        <ItemContent><span>@item.ToString()</span></ItemContent>
+        <Placeholder><span>Loading</span></Placeholder>
+        <EmptyContent><strong>Empty</strong></EmptyContent>
+    </Virtualize>
+</HtmlSlot>
+@code {
+    private readonly int[] items = new[] { 1, 2 };
+}
+
