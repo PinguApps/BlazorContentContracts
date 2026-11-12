@@ -68,7 +68,10 @@ internal sealed class CompiledLibraryFixture : IDisposable
                 }
                 """);
             var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
-            File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", ""));
+            if (wrapper != "external derived summarized")
+            {
+                File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
+            }
 
             if (wrapper == "external generic")
             {
@@ -176,7 +179,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
             if (wrapper is "missing" or "incompatible")
             {
                 var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
-                File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", ""));
+                File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
             }
         }
 
@@ -250,7 +253,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
                 usage = "<Published.Wrapper TItem=\"int\"><span /></Published.Wrapper>";
             }
 
-            if (wrapper is "external derived" or "external framework derived")
+            if (wrapper is "external derived" or "external derived summarized" or "external framework derived")
             {
                 File.WriteAllText(Path.Combine(directory, "Consumer", "Derived.cs"), $$"""
                     public class Derived : {{(wrapper == "external framework derived" ? "Microsoft.AspNetCore.Components.Forms.InputRadioGroup<int>" : "Published.Wrapper")}}

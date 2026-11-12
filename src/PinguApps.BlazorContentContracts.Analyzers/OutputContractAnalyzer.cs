@@ -43,6 +43,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
 
         var attributeType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts." + attributeName);
         AttributeData? result = null;
+        var inheritedSummaryAllowed = true;
 
         while (symbol != null)
         {
@@ -54,7 +55,7 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                 result = attribute;
             }
 
-            if (result == null && symbol is INamedTypeSymbol component && component.DeclaringSyntaxReferences.IsEmpty)
+            if (result == null && inheritedSummaryAllowed && symbol is INamedTypeSymbol component && component.DeclaringSyntaxReferences.IsEmpty)
             {
                 var summaryType = compilation.GetTypeByMetadataName("PinguApps.BlazorContentContracts."
                     + (attributeName == "ForwardsContentAttribute" ? "CompiledForwardingAttribute" : "CompiledContentAttribute"));
@@ -80,6 +81,13 @@ public sealed class OutputContractAnalyzer : DiagnosticAnalyzer
                 {
                     result = summaries[0];
                 }
+            }
+
+            if (symbol is INamedTypeSymbol renderedType
+                && renderedType.GetMembers("BuildRenderTree").OfType<IMethodSymbol>().Any(method => method.IsOverride))
+            {
+                // An inferred base summary describes that implementation, not a rendering override.
+                inheritedSummaryAllowed = false;
             }
 
             symbol = symbol switch

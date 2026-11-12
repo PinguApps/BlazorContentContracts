@@ -112,7 +112,7 @@ internal sealed class PackageActivationFixture : IDisposable
         {
             if (mode == "version")
             {
-                Assert.Contains(File.ReadAllLines(record), line => line.Replace('\\', '/').Contains("/1.0.1/analyzers/", StringComparison.Ordinal));
+                Assert.Contains(File.ReadAllLines(record), line => Path.GetFullPath(line).Replace('\\', '/').Contains("/1.0.1/analyzers/", StringComparison.Ordinal));
             }
 
             Assert.Equal(enabled ? 1 : 0, File.ReadAllLines(record).Count(line => line.EndsWith(Package + ".Analyzers.dll", StringComparison.Ordinal)));
