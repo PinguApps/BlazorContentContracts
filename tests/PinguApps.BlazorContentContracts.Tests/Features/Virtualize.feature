@@ -1,0 +1,18 @@
+Feature: Virtualize output preserves content checking
+
+    Scenario Outline: Spacers and all template output obey the receiving contract
+        Given a forwarding parameter allowing '<permissions>' with usage '<usage>'
+        When the real Razor SDK builds the consumer
+        Then unresolved output has <unknown> warnings and <invalid> definite violations
+
+        Examples:
+            | permissions | usage | unknown | invalid |
+            | typeof(Good) | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])"><Good /></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 2 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "tr" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="tr"><ItemContent><Good /></ItemContent></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 1 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "tr" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="tr"><ItemContent><Good /></ItemContent><Placeholder><Good /></Placeholder><EmptyContent><Good /></EmptyContent></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 0 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "div" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])"><ItemContent><Bad /></ItemContent><Placeholder><Bad /></Placeholder><EmptyContent><Bad /></EmptyContent></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 3 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "div" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="@(System.DateTime.Now.ToString())"><ItemContent><Bad /></ItemContent><Placeholder><Good /></Placeholder></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 1 | 1 |
+            | typeof(Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize<>) => typeof(Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize<>) | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="@(System.DateTime.Now.ToString())"><Bad /></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 0 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "div" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="span"><ItemContent><Good /></ItemContent><Placeholder><Good /></Placeholder></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 1 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "tr" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="@Tag"><ItemContent><Good /></ItemContent><Placeholder></Placeholder></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> @code { private const string Tag = "tr"; } | 0 | 0 |
+            | typeof(Good) => typeof(Good), HtmlElements = new[] { "tr" } | <Slot><Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize TItem="int" Items="@(new int[0])" SpacerElement="tr" Placeholder="@((RenderFragment<Microsoft.AspNetCore.Components.Web.Virtualization.PlaceholderContext>)null)"><Good /></Microsoft.AspNetCore.Components.Web.Virtualization.Virtualize></Slot> | 0 | 1 |

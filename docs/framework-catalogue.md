@@ -53,7 +53,7 @@ regardless of the current authentication state. Omitted fragments emit nothing.
 `Authorized` and `ChildContent` must not both be supplied: the framework rejects
 that combination at runtime, even though Razor can compile it. This analyzer checks
 output contracts and does not validate framework parameter combinations. Other
-description kinds grant no transparency yet, except ErrorBoundary defaults: both supplied
+description kinds grant no transparency yet, except Virtualize (described below) and ErrorBoundary defaults: both supplied
 `ChildContent` and typed `ErrorContent` are checked; omitted `ErrorContent` adds the
 framework default empty `div`. An explicitly empty error template replaces that default.
 Allowed HTML still has its descendants checked; explicitly allowed ErrorBoundary
@@ -87,3 +87,13 @@ Known invalid sibling output remains an error. No new diagnostic ID is needed.
 The registry tests currently exercise installed .NET 10 and .NET 11 framework symbols and
 synthetic .NET 10/11 selection identities. Real packed Razor consumers exercise
 the conservative derived-component path on both .NET 10 and .NET 11.
+
+Virtualize is active on both supported assembly identities. Its spacers use the
+constant `SpacerElement` value (default `div`); a dynamic value reports BCC006
+with a specific reason without hiding invalid templates. Its default placeholder
+is independently a `div`, including when spacers use `tr`. Explicit Placeholder
+replaces this fallback. ChildContent, ItemContent, Placeholder and EmptyContent
+are checked as possible output. Allowed Virtualize types remain terminal.
+These rules follow the .NET 10 Virtualize implementation and .NET 11 source:
+https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Components/Web/src/Virtualization/Virtualize.cs
+https://github.com/dotnet/aspnetcore/blob/main/src/Components/Web/src/Virtualization/Virtualize.cs
