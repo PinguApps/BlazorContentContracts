@@ -685,7 +685,7 @@ internal sealed class RazorBuildFixture : IDisposable
         }
     }
 
-    public void WhenBuild()
+    public void WhenBuild(bool analysis = true)
     {
         var dotnet = Environment.GetEnvironmentVariable("BCC_CONSUMER_DOTNET") ?? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? throw new InvalidOperationException("DOTNET_HOST_PATH must identify the selected SDK executable.");
@@ -699,6 +699,11 @@ internal sealed class RazorBuildFixture : IDisposable
         start.ArgumentList.Add("build");
         start.ArgumentList.Add("-v:q");
         start.ArgumentList.Add("--disable-build-servers");
+
+        if (!analysis)
+        {
+            start.ArgumentList.Add("-p:RunAnalyzers=false");
+        }
 
         if (editorLocations)
         {
@@ -729,6 +734,7 @@ internal sealed class RazorBuildFixture : IDisposable
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
+
         if (!process.WaitForExit(90000))
         {
             process.Kill(entireProcessTree: true);
@@ -738,6 +744,79 @@ internal sealed class RazorBuildFixture : IDisposable
         output = stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult();
         exitCode = process.ExitCode;
         Assert.True(File.Exists(Path.Combine(directory, "diagnostics.sarif")), output);
+    }
+
+    public void VerifyEditInvalidation(string kind)
+    {
+        if (kind == "referenced summary")
+        {
+            GivenPublishedOutput("typeof(Good)");
+            File.WriteAllText(Path.Combine(directory, "Library", "Other.cs"),
+                "public class Other : Microsoft.AspNetCore.Components.ComponentBase { }");
+        }
+        else
+        {
+            GivenWrapper("<Good />", "<Wrapper />");
+        }
+
+        if (kind == "assignment")
+        {
+            File.WriteAllText(Path.Combine(directory, "Usage.razor"),
+                "<Slot>@Item</Slot>\n@code { private RenderFragment Item => builder => { builder.OpenComponent<Good>(0); builder.CloseComponent(); }; }");
+        }
+
+        WhenBuild();
+        ThenUnknown(0, 0);
+        var path = Path.Combine(directory, kind switch
+        {
+            "contract" => "Slot.cs",
+            "assignment" => "Usage.razor",
+            "referenced summary" => "Library/LibraryFactory.cs",
+            _ => "Wrapper.razor"
+        });
+        var original = File.ReadAllText(path);
+        var changed = kind switch
+        {
+            "contract" => original.Replace("AllowedChildren(typeof(Good))", "AllowedChildren(typeof(Bad))", StringComparison.Ordinal),
+            "assignment" => original.Replace("builder.OpenComponent<Good>(0); builder.CloseComponent();", "builder.OpenElement(0, \"span\"); builder.CloseElement();", StringComparison.Ordinal),
+            "referenced summary" => original.Replace("typeof(Good)", "typeof(Other)", StringComparison.Ordinal),
+            _ => "<span />"
+        };
+        File.WriteAllText(path, changed);
+
+        WhenBuild();
+        Assert.True(exitCode != 0, output);
+        Assert.Contains(kind == "referenced summary" ? "BCC009" : "BCC005", output);
+        Assert.DoesNotContain("AD0001", output);
+        File.WriteAllText(path, original);
+
+        WhenBuild();
+        ThenUnknown(0, 0);
+    }
+
+    public void MeasureBoundedBuild(string kind)
+    {
+        GivenBoundedOutput(kind);
+
+        foreach (var analysis in new[] { true, false, true, false })
+        {
+            // Force compilation while retaining restored dependencies and generated inputs.
+            var usage = Path.Combine(directory, "Usage.razor");
+            File.AppendAllText(usage, "\n@* measurement rebuild *@");
+            var timer = Stopwatch.StartNew();
+            WhenBuild(analysis);
+            timer.Stop();
+            Console.WriteLine($"BCC measurement: {kind}, analysis={analysis}, elapsed_ms={timer.ElapsedMilliseconds}, exit={exitCode}, framework={Environment.GetEnvironmentVariable("BCC_CONSUMER_FRAMEWORK") ?? "net11.0"}, runtime={Environment.Version}, os={Environment.OSVersion}, processors={Environment.ProcessorCount}");
+
+            if (analysis)
+            {
+                ThenBoundedOutput("BCC013");
+            }
+            else
+            {
+                Assert.Equal(0, exitCode);
+            }
+        }
     }
 
     public void ThenDiagnostics(string expected)
