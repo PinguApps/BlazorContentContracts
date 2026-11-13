@@ -20,7 +20,9 @@ Each measurement alternates enabled/disabled analysis twice, appending a Razor
 comment to force recompilation. Restored dependencies remain cached. Disabled
 uses `RunAnalyzers=false`, disabling all analyzers, so the comparison includes
 other SDK analyzers and cannot isolate the cost of this package. Enabled builds
-intentionally fail on the invalid sibling. Results include restore, Razor
+intentionally fail on the invalid sibling. A failed build can omit later build
+steps completed by a successful disabled build, so the timings compare different
+amounts of work. Results include restore, Razor
 generation, compilation and process startup. These are wall-clock observations,
 not a microbenchmark or runner-cost claim. The first sample includes cold fixture
 setup effects; compare later samples cautiously and repeat on an idle machine.
