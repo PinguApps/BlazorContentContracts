@@ -36,7 +36,9 @@ try
     Run(root, "build", "-c", "Release", "-p:Version=" + packageVersion);
 
 
-    var output = Path.Combine(root, "artifacts", "packages");
+    var output = Path.GetFullPath(Path.Combine(root, "artifacts", "packages"));
+    Require(output.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Package output must stay within the worktree.");
+
     if (Directory.Exists(output))
     {
         Directory.Delete(output, recursive: true);
@@ -68,6 +70,17 @@ try
 
         using var manifest = archive.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
         var metadata = XDocument.Load(manifest).Descendants().Single(element => element.Name.LocalName == "metadata");
+        Require(metadata.Elements().Single(element => element.Name.LocalName == "id").Value == package
+            && metadata.Elements().Single(element => element.Name.LocalName == "version").Value == packageVersion,
+            $"{package}: package identity/version mismatch");
+        var expectedSource = Environment.GetEnvironmentVariable("BCC_SOURCE_SHA");
+
+        if (!string.IsNullOrEmpty(expectedSource))
+        {
+            Require(metadata.Elements().Any(element => element.Name.LocalName == "repository"
+                && (string?)element.Attribute("commit") == expectedSource), $"{package}: source commit mismatch");
+        }
+
         Require(metadata.Elements().Any(element => element.Name.LocalName == "authors" && element.Value == "PinguApps"),
             $"{package}: missing author");
         Require(metadata.Elements().Any(element => element.Name.LocalName == "license" && element.Value == "MIT"),

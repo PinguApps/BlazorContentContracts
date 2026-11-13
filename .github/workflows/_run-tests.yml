@@ -1,6 +1,16 @@
 name: Run Tests
 on:
   workflow_call:
+    inputs:
+      source:
+        type: string
+        default: ''
+      version:
+        type: string
+        default: '1.0.0'
+      artifact:
+        type: string
+        default: packages
   workflow_dispatch:
 permissions:
   contents: read
@@ -8,11 +18,15 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
+      BCC_SOURCE_SHA: ${{ inputs.source || github.sha }}
+      BCC_PACKAGE_VERSION: ${{ inputs.version || '1.0.0' }}
       DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: '0'
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source || github.sha }}
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
@@ -22,10 +36,27 @@ jobs:
       - name: Build, test and verify real packages
         run: dotnet run --file scripts/verify.cs
 
+      - name: Select exact release artifacts and record hashes
+        shell: pwsh
+        env:
+          RELEASE_SOURCE: ${{ inputs.source || github.sha }}
+        run: |
+          New-Item -ItemType Directory -Path artifacts/validated | Out-Null
+          $packages = @('PinguApps.BlazorContentContracts', 'PinguApps.BlazorContentContracts.Analyzers')
+          foreach ($package in $packages) {
+            foreach ($extension in @('nupkg', 'snupkg')) {
+              Copy-Item "artifacts/packages/$package.$env:BCC_PACKAGE_VERSION.$extension" artifacts/validated
+            }
+          }
+          $files = Get-ChildItem artifacts/validated -File | Sort-Object Name | ForEach-Object {
+            @{ name = $_.Name; sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
+          }
+          @{ repository = $env:GITHUB_REPOSITORY; source = $env:RELEASE_SOURCE; version = $env:BCC_PACKAGE_VERSION; files = @($files) } |
+            ConvertTo-Json -Depth 5 | Set-Content artifacts/validated/manifest.json
+          ./scripts/Test-ReleaseArtifacts.ps1 -Directory artifacts/validated -Repository $env:GITHUB_REPOSITORY -Source $env:RELEASE_SOURCE -Version $env:BCC_PACKAGE_VERSION
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: packages
-          path: |
-            artifacts/packages/*.nupkg
-            artifacts/packages/*.snupkg
+          name: ${{ inputs.artifact || 'packages' }}
+          path: artifacts/validated/*
           if-no-files-found: error

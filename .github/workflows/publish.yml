@@ -1,0 +1,120 @@
+name: Publish stable NuGet packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+      dry-run:
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      dry-run:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.release.outputs.source }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+
+      - name: Resolve published release and immutable source
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = ./scripts/Get-ReleaseVersion.ps1 -Tag $env:TAG
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.draft -or $release.prerelease -or $release.tag_name -cne $env:TAG) {
+            throw 'An existing published stable release with this exact tag is required.'
+          }
+          ./scripts/Get-ReleaseVersion.ps1 -Tag $env:TAG -Name $release.name | Out-Null
+          if ([string]::IsNullOrWhiteSpace($release.body)) { throw 'Release notes are required.' }
+          $source = git rev-parse --verify "refs/tags/$env:TAG^{commit}"
+          if ($LASTEXITCODE -ne 0 -or $source -notmatch '^[0-9a-f]{40}$') { throw 'Tag must resolve to a commit.' }
+          git merge-base --is-ancestor $source origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release source must be on main.' }
+          "source=$source" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+  validate:
+    needs: resolve
+    permissions:
+      contents: read
+    uses: ./.github/workflows/_run-tests.yml
+    with:
+      source: ${{ needs.resolve.outputs.source }}
+      version: ${{ needs.resolve.outputs.version }}
+      artifact: release-${{ needs.resolve.outputs.version }}
+
+  publish:
+    needs: [resolve, validate]
+    if: vars.NUGET_PUBLISH_ENABLED == 'true' && ((github.event_name == 'release' && inputs.tag == '') || (inputs.tag != '' && !inputs.dry-run))
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: '0'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-${{ needs.resolve.outputs.version }}
+          path: artifacts/validated
+
+      - name: Verify artifact identity and hashes
+        shell: pwsh
+        env:
+          SOURCE: ${{ needs.resolve.outputs.source }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          ./scripts/Test-ReleaseArtifacts.ps1 -Directory artifacts/validated -Repository $env:GITHUB_REPOSITORY -Source $env:SOURCE -Version $env:VERSION
+          Get-Content artifacts/validated/manifest.json >> $env:GITHUB_STEP_SUMMARY
+
+      - name: NuGet trusted login
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push validated packages and symbols
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          foreach ($extension in @('nupkg', 'snupkg')) {
+            foreach ($file in Get-ChildItem "artifacts/validated/*.$extension") {
+              dotnet nuget push $file.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+              if ($LASTEXITCODE -ne 0) { throw "Push failed: $($file.Name)" }
+            }
+          }

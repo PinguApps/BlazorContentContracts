@@ -239,3 +239,6 @@ can be promoted using `dotnet_diagnostic.BCC012.severity = error` and
 Source/body caches live only within one receiving-contract analysis. Render bodies are
 keyed by constructed component symbols; fragment sources by syntax identity. Validated
 output is never cached across contracts or supplied templates, and edits start fresh.
+
+Stable release workflow, dry runs, artifact evidence and trusted identity are described
+in [publishing](docs/publishing.md).
