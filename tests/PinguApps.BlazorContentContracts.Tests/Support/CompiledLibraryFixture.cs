@@ -9,6 +9,8 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class CompiledLibraryFixture : IDisposable
 {
+    private static string PackageVersion => Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0";
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "bcc-compiled-" + Guid.NewGuid().ToString("N"));
     private string output = "";
     private int exitCode;
@@ -70,7 +72,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
             var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
             if (wrapper != "external derived summarized")
             {
-                File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
+                File.WriteAllText(project, File.ReadAllText(project).Replace($"<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"{PackageVersion}\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
             }
 
             if (wrapper == "external generic")
@@ -179,7 +181,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
             if (wrapper is "missing" or "incompatible")
             {
                 var project = Path.Combine(directory, "Wrappers", "Wrappers.csproj");
-                File.WriteAllText(project, File.ReadAllText(project).Replace("<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
+                File.WriteAllText(project, File.ReadAllText(project).Replace($"<PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"{PackageVersion}\" PrivateAssets=\"all\" />", "").Replace("<PropertyGroup>", "<PropertyGroup><BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>"));
             }
         }
 
@@ -290,8 +292,8 @@ internal sealed class CompiledLibraryFixture : IDisposable
               </PropertyGroup>
               <ItemGroup>
                 <FrameworkReference Include="Microsoft.AspNetCore.App" />
-                <PackageReference Include="PinguApps.BlazorContentContracts" Version="1.0.0" />
-                <PackageReference Include="PinguApps.BlazorContentContracts.Analyzers" Version="1.0.0" PrivateAssets="all" />
+                <PackageReference Include="PinguApps.BlazorContentContracts" Version="{{PackageVersion}}" />
+                <PackageReference Include="PinguApps.BlazorContentContracts.Analyzers" Version="{{PackageVersion}}" PrivateAssets="all" />
                 {{references}}
                 <AdditionalFiles Include="**/*.razor" Exclude="bin/**;obj/**" />
               </ItemGroup>

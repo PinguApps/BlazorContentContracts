@@ -8,6 +8,9 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class PackageActivationFixture : IDisposable
 {
+    private static string PackageVersion => Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0";
+    private static string AlternateVersion => Environment.GetEnvironmentVariable("BCC_ALTERNATE_VERSION") ?? "1.0.1";
+
     private const string Package = "PinguApps.BlazorContentContracts";
     private readonly string directory = Path.Combine(Path.GetTempPath(), "bcc-activation-" + Guid.NewGuid().ToString("N"));
     private string mode = "";
@@ -44,7 +47,7 @@ internal sealed class PackageActivationFixture : IDisposable
         File.WriteAllText(Path.Combine(directory, "global.json"),
             framework == "net10.0" && mode is not ("multi" or "downloaded packs") ? """{"sdk":{"version":"10.0.403","rollForward":"latestPatch"}}"""
                 : """{"sdk":{"version":"11.0.100","rollForward":"latestPatch"}}""");
-        var reference = $"<PackageReference Include=\"{Package}\" Version=\"1.0.0\" />";
+        var reference = $"<PackageReference Include=\"{Package}\" Version=\"{PackageVersion}\" />";
 
         if (mode is "chain" or "project" or "private")
         {
@@ -63,13 +66,13 @@ internal sealed class PackageActivationFixture : IDisposable
         if (mode == "central")
         {
             File.WriteAllText(Path.Combine(directory, "Directory.Packages.props"),
-                $"<Project><PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup><ItemGroup><PackageVersion Include=\"{Package}\" Version=\"1.0.0\" /></ItemGroup></Project>");
-            reference = reference.Replace(" Version=\"1.0.0\"", "");
+                $"<Project><PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup><ItemGroup><PackageVersion Include=\"{Package}\" Version=\"{PackageVersion}\" /></ItemGroup></Project>");
+            reference = reference.Replace($" Version=\"{PackageVersion}\"", "");
         }
 
         if (mode is "duplicate" or "version")
         {
-            reference += $"<PackageReference Include=\"{Package}.Analyzers\" Version=\"{(mode == "version" ? "1.0.1" : "1.0.0")}\" PrivateAssets=\"all\" />";
+            reference += $"<PackageReference Include=\"{Package}.Analyzers\" Version=\"{(mode == "version" ? AlternateVersion : PackageVersion)}\" PrivateAssets=\"all\" />";
         }
 
         Project("Consumer", mode is "multi" or "downloaded packs" ? "net10.0;net11.0" : framework, reference);
@@ -136,7 +139,7 @@ internal sealed class PackageActivationFixture : IDisposable
         {
             if (mode == "version")
             {
-                Assert.Contains(File.ReadAllLines(record), line => Path.GetFullPath(line).Replace('\\', '/').Contains("/1.0.1/analyzers/", StringComparison.Ordinal));
+                Assert.Contains(File.ReadAllLines(record), line => Path.GetFullPath(line).Replace('\\', '/').Contains($"/{AlternateVersion}/analyzers/", StringComparison.Ordinal));
             }
 
             Assert.Equal(enabled ? 1 : 0, File.ReadAllLines(record).Count(line => line.EndsWith(Package + ".Analyzers.dll", StringComparison.Ordinal)));
