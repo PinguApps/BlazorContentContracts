@@ -37,4 +37,3 @@ public sealed class ReleaseDraftSteps
         Assert.Contains("\"source\":", output);
     }
 }
-

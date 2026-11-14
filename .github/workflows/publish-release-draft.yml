@@ -61,4 +61,3 @@ jobs:
     with:
       tag: ${{ needs.draft.outputs.tag }}
       dry-run: false
-
