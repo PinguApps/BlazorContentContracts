@@ -14,7 +14,7 @@
     {
       "description": "Show compiler upgrades outside the qualified Roslyn baseline for dashboard approval.",
       "matchManagers": ["nuget"],
-      "matchPackageNames": ["Microsoft.CodeAnalysis.CSharp", "Microsoft.CodeAnalysis.Analyzers"],
+      "matchPackageNames": ["Microsoft.CodeAnalysis.CSharp", "Microsoft.CodeAnalysis.CSharp.Workspaces", "Microsoft.CodeAnalysis.Analyzers"],
       "matchNewValue": "!/^5\\.9\\.[0-9]+$/",
       "dependencyDashboardApproval": true
     },

@@ -31,6 +31,7 @@ dotnet = Path.GetFullPath(dotnet!);
 var consumerFramework = "net11.0";
 var processPath = Environment.GetEnvironmentVariable("PATH");
 var persistentPaths = PersistentPaths();
+string qualificationReceipt;
 
 try
 {
@@ -218,14 +219,14 @@ try
             $"{name}: artifact changed during qualification; rerun affected evidence.");
     }
 
-    File.WriteAllText(Path.Combine(output, "qualification.json"), JsonSerializer.Serialize(new
+    qualificationReceipt = JsonSerializer.Serialize(new
     {
         version = packageVersion,
         source = packageSource,
         completedUtc = DateTimeOffset.UtcNow,
         files = qualifiedPackages.Select(package => new { name = package.Name, sha256 = package.Hash }),
         scope = "CLI packages and consumers only; live editor and publishing qualification are separate."
-    }, new JsonSerializerOptions { WriteIndented = true }));
+    }, new JsonSerializerOptions { WriteIndented = true });
 }
 
 finally
@@ -236,6 +237,7 @@ finally
     Require(Environment.GetEnvironmentVariable("PATH") == processPath, "Process PATH changed.");
 }
 
+File.WriteAllText(Path.Combine(root, "artifacts", "packages", "qualification.json"), qualificationReceipt);
 Console.WriteLine("Build, tests, release tracking, package layout and independent consumer passed.");
 
 void Run(string cwd, params string[] arguments)
