@@ -39,7 +39,7 @@ GITHUB_TOKEN does not trigger a second release workflow run. The reusable
 publisher retains its per-tag lock and duplicate-safe immutable NuGet pushes.
 If draft publication succeeds but package publication fails, rerun failed jobs
 in that run or dispatch `publish.yml` with `tag=<already-published-tag>` and
-`dry-run=false`, with `NUGET_PUBLISH_ENABLED=true`. A new weekly
+`dry-run=false`, with the repository variable `NUGET_PUBLISH_ENABLED=true`. A new weekly
 run intentionally does not republish it. Fix content using a new version.
 
 The 2026-11-14 read-only audit of PinguApps repositories found draft-publishing

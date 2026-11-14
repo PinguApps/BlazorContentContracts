@@ -53,8 +53,10 @@ try {
         $options.Paginated = $true
         $releases = switch ($Scenario) {
             'two pages' { ,@(@($stable), @($draft)) }
-            'empty pages' { ,@(@()) }
             'malformed pages' { ,@($stable, $draft) }
+        }
+        if ($Scenario -eq 'empty pages') {
+            $releases = ConvertFrom-Json -InputObject '[[]]' -NoEnumerate
         }
     }
     ConvertTo-Json -Depth 10 -InputObject $releases > releases.json
