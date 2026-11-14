@@ -36,6 +36,16 @@ jobs:
       - name: Build, test and verify real packages
         run: dotnet run --file scripts/verify.cs
 
+      - name: Retain qualification results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ inputs.artifact || 'packages' }}-qualification
+          path: |
+            artifacts/qualification/*.trx
+            artifacts/packages/qualification.json
+          if-no-files-found: warn
+
       - name: Select exact release artifacts and record hashes
         shell: pwsh
         env:
