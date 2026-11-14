@@ -67,9 +67,19 @@ try
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
         Require(names.Contains(expected), $"{package}: missing {expected}");
         Require(names.Contains("README.md") && names.Contains("LICENSE"), $"{package}: missing package documentation");
+        var icon = archive.GetEntry("icon.png");
+        Require(icon is not null && icon.Length > 0 && icon.Length <= 1_000_000, $"{package}: missing or oversized package icon");
+
+        using var iconStream = icon!.Open();
+        using var iconBytes = new MemoryStream();
+        iconStream.CopyTo(iconBytes);
+        Require(iconBytes.ToArray().SequenceEqual(File.ReadAllBytes(Path.Combine(root, "assets", "branding", "icon.png"))),
+            $"{package}: package icon differs from the reviewed asset");
 
         using var manifest = archive.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
         var metadata = XDocument.Load(manifest).Descendants().Single(element => element.Name.LocalName == "metadata");
+        Require(metadata.Elements().Any(element => element.Name.LocalName == "icon" && element.Value == "icon.png"),
+            $"{package}: missing icon metadata");
         Require(metadata.Elements().Single(element => element.Name.LocalName == "id").Value == package
             && metadata.Elements().Single(element => element.Name.LocalName == "version").Value == packageVersion,
             $"{package}: package identity/version mismatch");
