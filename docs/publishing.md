@@ -110,3 +110,21 @@ Final artifact qualification and first live OIDC/public-feed verification belong
 to PIN-1274/PIN-1275/PIN-1276. A dry run proves neither account access nor publishing.
 
 Release-script test scenarios require PowerShell 7 (`pwsh`) alongside the SDK.
+
+## Qualification evidence
+
+`scripts/verify.cs` records the hashes of the packed files before exercising
+consumers and checks the same hashes afterward. Only a successful run writes
+`artifacts/packages/qualification.json`, identifying the package source commit,
+version, completion time and SHA-256 hashes. The alternate analyzer version is
+included as a dependency-resolution fixture, not as a release candidate.
+The two SDK passes retain TRX results in `artifacts/qualification`.
+
+This receipt covers CLI verification. Live editor checks must use these same
+package bytes and follow [editor qualification](editor-support.md). Local release
+selection fixtures use real temporary git histories and synthetic release API
+responses; they do not prove GitHub scheduling, permissions or a NuGet OIDC
+exchange. Keep those observations separate from hosted workflow evidence.
+
+After any package change, repeat the affected consumer and editor checks and
+record the new hashes. A previous receipt cannot qualify a rebuilt package.

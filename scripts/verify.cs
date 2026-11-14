@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection.Metadata;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -50,12 +51,18 @@ try
 
     Run(root, "pack", "src/PinguApps.BlazorContentContracts.Analyzers", "-c", "Release", "--no-build", "-p:Version=" + alternateVersion, "-o", output);
 
-    Run(root, "test", "-c", "Release", "--no-build");
+    var qualifiedPackages = Directory.GetFiles(output, "*.nupkg").Concat(Directory.GetFiles(output, "*.snupkg"))
+        .OrderBy(path => path, StringComparer.Ordinal)
+        .Select(path => (Name: Path.GetFileName(path), Hash: Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)))))
+        .ToArray();
+
+    Run(root, "test", "-c", "Release", "--no-build", "--logger", "trx;LogFileName=net11.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RunnableAdoptionExamples|FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent");
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RunnableAdoptionExamples|FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent", "--logger", "trx;LogFileName=net10.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
+    string? packageSource = null;
 
     foreach (var (package, expected) in new[]
     {
@@ -100,6 +107,9 @@ try
         Require(metadata.Elements().Any(element => element.Name.LocalName == "repository"
             && (string?)element.Attribute("url") == "https://github.com/PinguApps/BlazorContentContracts"
             && !string.IsNullOrEmpty((string?)element.Attribute("commit"))), $"{package}: missing repository commit metadata");
+        var sourceCommit = (string?)metadata.Elements().Single(element => element.Name.LocalName == "repository").Attribute("commit");
+        Require(packageSource is null || packageSource == sourceCommit, "Packages refer to different source commits.");
+        packageSource = sourceCommit;
 
         using var symbols = ZipFile.OpenRead(Path.Combine(output, $"{package}.{packageVersion}.snupkg"));
         var pdb = symbols.Entries.Single(entry => entry.FullName.EndsWith(".pdb", StringComparison.Ordinal));
@@ -201,6 +211,21 @@ try
     {
         Directory.Delete(consumer, recursive: true);
     }
+
+    foreach (var (name, hash) in qualifiedPackages)
+    {
+        Require(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(output, name)))) == hash,
+            $"{name}: artifact changed during qualification; rerun affected evidence.");
+    }
+
+    File.WriteAllText(Path.Combine(output, "qualification.json"), JsonSerializer.Serialize(new
+    {
+        version = packageVersion,
+        source = packageSource,
+        completedUtc = DateTimeOffset.UtcNow,
+        files = qualifiedPackages.Select(package => new { name = package.Name, sha256 = package.Hash }),
+        scope = "CLI packages and consumers only; live editor and publishing qualification are separate."
+    }, new JsonSerializerOptions { WriteIndented = true }));
 }
 
 finally
