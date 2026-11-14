@@ -34,7 +34,7 @@ internal static class ReleaseScript
         var errors = process.StandardError.ReadToEndAsync();
         var output = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
-        errors.GetAwaiter().GetResult();
-        return (process.ExitCode, output);
+        var errorOutput = errors.GetAwaiter().GetResult();
+        return (process.ExitCode, process.ExitCode == 0 ? output : output + errorOutput);
     }
 }

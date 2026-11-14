@@ -25,7 +25,7 @@ public sealed class ReleaseDraftSteps
             return;
         }
 
-        Assert.Equal(0, exitCode);
+        Assert.True(exitCode == 0, output);
 
         if (outcome == "skip")
         {

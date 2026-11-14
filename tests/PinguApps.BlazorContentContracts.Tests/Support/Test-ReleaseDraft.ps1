@@ -1,7 +1,7 @@
 param([Parameter(Mandatory)][string] $Scenario)
 
 $ErrorActionPreference = 'Stop'
-$git = (Get-Command git -CommandType Application).Source
+$git = (Get-Command git -CommandType Application | Select-Object -First 1).Source
 $root = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $root | Out-Null
 Push-Location $root
