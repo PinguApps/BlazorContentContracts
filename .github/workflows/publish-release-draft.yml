@@ -1,0 +1,63 @@
+name: Publish stable release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        type: boolean
+        default: true
+  schedule:
+    - cron: '17 10 * * 0' # Provisional Sunday 10:17 UTC; owner activation required.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release-draft
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.WEEKLY_PUBLISH_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.publish.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select and optionally publish a stable draft
+        id: publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+          ENABLED: ${{ vars.WEEKLY_PUBLISH_ENABLED == 'true' && vars.NUGET_PUBLISH_ENABLED == 'true' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --slurp > releases.json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read releases.' }
+          $selection = ./scripts/Select-ReleaseDraft.ps1 -ReleasesFile releases.json -Paginated
+          if (!$selection) { 'No eligible draft.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $candidate = $selection | ConvertFrom-Json
+          "Selected $($candidate.tag) at $($candidate.source)" >> $env:GITHUB_STEP_SUMMARY
+          if ($env:DRY_RUN -eq 'true' -or $env:ENABLED -ne 'true') { exit 0 }
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$($candidate.id)" -F draft=false -f target_commitish=$($candidate.source)
+          if ($LASTEXITCODE -ne 0) { throw 'Draft publication failed.' }
+          "tag=$($candidate.tag)" >> $env:GITHUB_OUTPUT
+
+  packages:
+    needs: draft
+    if: needs.draft.outputs.tag != ''
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.draft.outputs.tag }}
+      dry-run: false
