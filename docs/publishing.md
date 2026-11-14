@@ -10,7 +10,49 @@ Publication is disabled until the separate publishing-access task configures
 repository variable `NUGET_PUBLISH_ENABLED=true`. Manual and reusable calls default
 to `dry-run: true`: they resolve, build, test, pack and upload evidence, but never
 request a NuGet token or push. Release events publish only when the enable guard is
-set. This change does not create releases or activate a schedule.
+set. The draft-publication channel below has a separate activation guard.
+
+## Guarded weekly drafts
+
+`publish-release-draft.yml` supports manual dispatch (default `dry-run: true`)
+and Sunday 10:17 UTC (`17 10 * * 0`). Scheduled runs do nothing until the owner
+sets `WEEKLY_PUBLISH_ENABLED=true`. Both that variable and
+`NUGET_PUBLISH_ENABLED=true` are required to publish a draft, including manually.
+Do not set them as part of this implementation. Owner activation follows the
+first stable release, live-feed verification and a refreshed schedule audit.
+
+The selector requires an existing stable release on main, new commits on main,
+and exactly one stable draft with a strictly greater stable version. Dependency,
+documentation and metadata commits all qualify; no paths or note-content
+heuristics decide whether changes deserve a release. Notes must still be nonempty
+to satisfy the reusable publisher's release contract. The greatest published
+stable version is the baseline; prereleases never establish the first stable.
+Invalid stable identities fail closed. A draft must target main or its current
+SHA; an existing draft tag must equal current main. Stale or off-main tags are
+rejected rather than moved. Missing baseline, commits or draft skips publication.
+
+Manual and scheduled work share a non-cancelling concurrency group. Publication
+pins the draft target to the inspected main SHA, then explicitly calls the local
+reusable `publish.yml` with `dry-run: false` and scoped OIDC permissions.
+GITHUB_TOKEN does not trigger a second release workflow run. The reusable
+publisher retains its per-tag lock and duplicate-safe immutable NuGet pushes.
+If draft publication succeeds but package publication fails, rerun failed jobs
+in that run or dispatch `publish.yml` for the already-published tag. A new weekly
+run intentionally does not republish it. Fix content using a new version.
+
+The 2026-11-14 read-only audit of PinguApps repositories found draft-publishing
+Sunday UTC slots: Dashboard.Railway 08:02, RabbitMQ.Railway 08:17,
+Railway.Jobs 08:32, Railway 08:47, RazorStyle 09:02, Upstash.Redis 09:17,
+PostgreSQL.Railway and UpdateAssistant 09:32, BlazorSitemap 09:39,
+Bunny.Storage 09:47, CodeStyle.Analyzers 10:02, and Playbook 18:17.
+10:17 is provisional and separated by 15 minutes from the latest morning slot.
+This is a snapshot of matching draft-publication workflows, not a reservation;
+the owner must refresh the portfolio audit before activation.
+
+Offline Gherkin scenarios exercise `Select-ReleaseDraft.ps1` against temporary
+real Git repositories without GitHub writes or NuGet access. A manual dry run
+prints the selected tag/SHA (or skip) and never publishes a draft or calls the
+package publisher. No live publication is required to verify these guards.
 
 ## Trusted identity
 
