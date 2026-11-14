@@ -41,14 +41,15 @@ jobs:
         env:
           RELEASE_SOURCE: ${{ inputs.source || github.sha }}
         run: |
-          New-Item -ItemType Directory -Path artifacts/validated | Out-Null
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path artifacts/validated | Out-Null
           $packages = @('PinguApps.BlazorContentContracts', 'PinguApps.BlazorContentContracts.Analyzers')
           foreach ($package in $packages) {
             foreach ($extension in @('nupkg', 'snupkg')) {
               Copy-Item "artifacts/packages/$package.$env:BCC_PACKAGE_VERSION.$extension" artifacts/validated
             }
           }
-          $files = Get-ChildItem artifacts/validated -File | Sort-Object Name | ForEach-Object {
+          $files = Get-ChildItem artifacts/validated -File | Where-Object Name -ne 'manifest.json' | Sort-Object Name | ForEach-Object {
             @{ name = $_.Name; sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
           }
           @{ repository = $env:GITHUB_REPOSITORY; source = $env:RELEASE_SOURCE; version = $env:BCC_PACKAGE_VERSION; files = @($files) } |

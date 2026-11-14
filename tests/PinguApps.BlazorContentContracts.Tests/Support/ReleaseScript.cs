@@ -12,7 +12,8 @@ internal static class ReleaseScript
         var executable = (Environment.GetEnvironmentVariable("PATH") ?? "")
             .Split(Path.PathSeparator)
             .Select(directory => Path.Combine(directory, OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh"))
-            .First(File.Exists);
+            .FirstOrDefault(File.Exists)
+            ?? throw new InvalidOperationException("Install PowerShell 7 (pwsh) to run release-script scenarios.");
         var root = Environment.GetEnvironmentVariable("BCC_REPOSITORY_ROOT")
             ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
         var start = new ProcessStartInfo(Path.GetFullPath(executable))
@@ -21,6 +22,8 @@ internal static class ReleaseScript
             RedirectStandardError = true,
             UseShellExecute = false
         };
+
+        start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
 
         foreach (var argument in new[] { "-NoProfile", "-File", Path.Combine(root, "scripts", script) }.Concat(arguments))
         {

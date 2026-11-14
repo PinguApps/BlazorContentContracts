@@ -27,9 +27,9 @@ internal sealed class ReleaseArtifactFixture : IDisposable
         }).ToArray();
         File.WriteAllText(Path.Combine(directory, "manifest.json"), JsonSerializer.Serialize(new
         {
-            repository = "PinguApps/BlazorContentContracts",
+            repository = condition == "wrong repository" ? "other/repository" : "PinguApps/BlazorContentContracts",
             source = condition == "wrong source" ? "other" : "source",
-            version = "1.2.3",
+            version = condition == "wrong version" ? "9.9.9" : "1.2.3",
             files
         }));
 

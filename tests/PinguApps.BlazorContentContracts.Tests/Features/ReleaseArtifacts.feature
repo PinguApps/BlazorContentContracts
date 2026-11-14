@@ -7,8 +7,10 @@ Feature: Release artifact integrity
     Then artifact verification "<result>"
 
     Examples:
-      | condition       | result   |
-      | original bytes  | succeeds |
-      | changed bytes   | fails    |
-      | wrong source    | fails    |
-      | extra package   | fails    |
+      | condition        | result   |
+      | original bytes   | succeeds |
+      | changed bytes    | fails    |
+      | wrong source     | fails    |
+      | wrong version    | fails    |
+      | wrong repository | fails    |
+      | extra package    | fails    |

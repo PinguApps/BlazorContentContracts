@@ -17,7 +17,7 @@ set. This change does not create releases or activate a schedule.
 Configure NuGet.org Trusted Publishing for owner `PinguApps`, repository
 `BlazorContentContracts`, workflow file `publish.yml`, and environment `nuget`.
 Restrict package ownership/policy to `PinguApps.BlazorContentContracts` and
-`PinguApps.BlazorContentContracts.Analyzers`. Set environment variable `NUGET_USER`
+`PinguApps.BlazorContentContracts.Analyzers`. Set GitHub Actions configuration variable `NUGET_USER` in the `nuget` environment
 to the NuGet account with permission to publish both IDs. Confirm the configured
 account and policy during PIN-1275; these are required setup, not evidence of an
 existing policy. See [NuGet's setup instructions](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).
@@ -38,6 +38,8 @@ The existing tests exercise the actual packages on .NET 10 and 11 and verify
 transitive activation, package layout, SourceLink, symbols and blank Unshipped
 tracking. A separate next-patch analyzer package is a resolution-test fixture;
 it is excluded from the release artifact. No release package is repacked.
+
+The manifest and hashes share the validation job's trust boundary; they detect file changes, not a compromised build job. GitHub's immutable same-run artifact provides the handoff boundary.
 
 The immutable workflow artifact contains exactly the two nupkg files, their two
 snupkg files, and a manifest recording repository, source SHA, version and SHA-256
@@ -62,3 +64,5 @@ correct SemVer. New diagnostics go directly into `AnalyzerReleases.Shipped.md`
 under their release; `AnalyzerReleases.Unshipped.md` remains the blank template.
 Final artifact qualification and first live OIDC/public-feed verification belong
 to PIN-1274/PIN-1275/PIN-1276. A dry run proves neither account access nor publishing.
+
+Release-script test scenarios require PowerShell 7 (`pwsh`) alongside the SDK.

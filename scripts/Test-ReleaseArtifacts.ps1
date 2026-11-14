@@ -13,11 +13,11 @@ if ($manifest.repository -cne $Repository -or $manifest.source -cne $Source -or 
 $expected = foreach ($id in @('PinguApps.BlazorContentContracts', 'PinguApps.BlazorContentContracts.Analyzers')) {
     foreach ($extension in @('nupkg', 'snupkg')) { "$id.$Version.$extension" }
 }
-if (@($manifest.files).Count -ne 4 -or (Compare-Object ($expected | Sort-Object) ($manifest.files.name | Sort-Object))) {
+if (@($manifest.files).Count -ne 4 -or (Compare-Object -CaseSensitive ($expected | Sort-Object) ($manifest.files.name | Sort-Object))) {
     throw 'Unexpected package set.'
 }
 $actual = @(Get-ChildItem -LiteralPath $Directory -File | Where-Object Name -ne manifest.json | Select-Object -ExpandProperty Name)
-if (Compare-Object ($expected | Sort-Object) ($actual | Sort-Object)) {
+if (Compare-Object -CaseSensitive ($expected | Sort-Object) ($actual | Sort-Object)) {
     throw 'Unexpected artifact files.'
 }
 foreach ($file in $manifest.files) {
