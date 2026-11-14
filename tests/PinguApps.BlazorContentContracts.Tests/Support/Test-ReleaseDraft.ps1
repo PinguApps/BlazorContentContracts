@@ -48,8 +48,17 @@ try {
             & $git checkout --quiet main
         }
     }
+    $options = @{}
+    if ($Scenario -in @('two pages', 'empty pages', 'malformed pages')) {
+        $options.Paginated = $true
+        $releases = switch ($Scenario) {
+            'two pages' { ,@(@($stable), @($draft)) }
+            'empty pages' { ,@(@()) }
+            'malformed pages' { ,@($stable, $draft) }
+        }
+    }
     ConvertTo-Json -Depth 10 -InputObject $releases > releases.json
-    & "$PSScriptRoot/../../../scripts/Select-ReleaseDraft.ps1" -ReleasesFile releases.json -Main refs/heads/main
+    & "$PSScriptRoot/../../../scripts/Select-ReleaseDraft.ps1" -ReleasesFile releases.json -Main refs/heads/main @options
 }
 finally {
     Pop-Location

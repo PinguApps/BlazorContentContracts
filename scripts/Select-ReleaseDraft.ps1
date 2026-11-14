@@ -1,10 +1,25 @@
 param(
     [Parameter(Mandatory)][string] $ReleasesFile,
-    [string] $Main = 'refs/remotes/origin/main'
+    [string] $Main = 'refs/remotes/origin/main',
+    [switch] $Paginated
 )
 
 $ErrorActionPreference = 'Stop'
-$releases = @(Get-Content -Raw $ReleasesFile | ConvertFrom-Json)
+$payload = Get-Content -Raw $ReleasesFile | ConvertFrom-Json -NoEnumerate
+if ($payload -isnot [array]) { throw 'Expected a release array.' }
+$releases = $payload
+if ($Paginated) {
+    $releases = @($payload | ForEach-Object {
+        if ($_ -isnot [array]) { throw 'Expected an array of release pages.' }
+        $_
+    })
+}
+foreach ($release in $releases) {
+    if ($release.draft -isnot [bool] -or $release.prerelease -isnot [bool] -or
+        $release.tag_name -isnot [string]) {
+        throw 'Invalid release payload.'
+    }
+}
 $stable = @($releases | Where-Object { -not $_.draft -and -not $_.prerelease })
 if ($stable.Count -eq 0) { return }
 

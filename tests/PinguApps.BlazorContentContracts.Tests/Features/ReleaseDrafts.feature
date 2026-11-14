@@ -23,3 +23,6 @@ Feature: Guarded stable draft selection
       | baseline outside | fail    |
       | matching tag     | publish |
       | empty notes      | fail    |
+      | two pages        | publish |
+      | empty pages      | skip    |
+      | malformed pages  | fail    |

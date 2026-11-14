@@ -29,6 +29,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Select and optionally publish a stable draft
         id: publish
@@ -41,10 +42,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --slurp > releases.json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot read releases.' }
-          # Flatten the paginated response before feeding the offline selector.
-          $pages = Get-Content -Raw releases.json | ConvertFrom-Json
-          ConvertTo-Json -Depth 20 -InputObject @($pages | ForEach-Object { $_ }) > releases.json
-          $selection = ./scripts/Select-ReleaseDraft.ps1 -ReleasesFile releases.json
+          $selection = ./scripts/Select-ReleaseDraft.ps1 -ReleasesFile releases.json -Paginated
           if (!$selection) { 'No eligible draft.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
           $candidate = $selection | ConvertFrom-Json
           "Selected $($candidate.tag) at $($candidate.source)" >> $env:GITHUB_STEP_SUMMARY
