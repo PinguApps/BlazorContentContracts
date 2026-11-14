@@ -27,7 +27,8 @@ documentation and metadata commits all qualify; no paths or note-content
 heuristics decide whether changes deserve a release. Notes must still be nonempty
 to satisfy the reusable publisher's release contract. The greatest published
 stable version is the baseline; prereleases never establish the first stable.
-Invalid stable identities fail closed. A draft must target main or its current
+Invalid stable identities, including missing or mismatched draft names, fail closed.
+A draft must target main or its current
 SHA; an existing draft tag must equal current main. Stale or off-main tags are
 rejected rather than moved. Missing baseline, commits or draft skips publication.
 
@@ -37,7 +38,8 @@ reusable `publish.yml` with `dry-run: false` and scoped OIDC permissions.
 GITHUB_TOKEN does not trigger a second release workflow run. The reusable
 publisher retains its per-tag lock and duplicate-safe immutable NuGet pushes.
 If draft publication succeeds but package publication fails, rerun failed jobs
-in that run or dispatch `publish.yml` for the already-published tag. A new weekly
+in that run or dispatch `publish.yml` with `tag=<already-published-tag>` and
+`dry-run=false`, with `NUGET_PUBLISH_ENABLED=true`. A new weekly
 run intentionally does not republish it. Fix content using a new version.
 
 The 2026-11-14 read-only audit of PinguApps repositories found draft-publishing
@@ -51,7 +53,7 @@ the owner must refresh the portfolio audit before activation.
 
 Offline Gherkin scenarios exercise `Select-ReleaseDraft.ps1` against temporary
 real Git repositories without GitHub writes or NuGet access. A manual dry run
-prints the selected tag/SHA (or skip) and never publishes a draft or calls the
+records the selected tag/SHA (or skip) in the run's job summary and never publishes a draft or calls the
 package publisher. No live publication is required to verify these guards.
 
 ## Trusted identity

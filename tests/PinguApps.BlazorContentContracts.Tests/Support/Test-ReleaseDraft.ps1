@@ -32,7 +32,11 @@ try {
         'prerelease' { $draft.prerelease = $true }
         'invalid tag' { $draft.tag_name = 'v1.1.0-beta' }
         'same version' { $draft.tag_name = $draft.name = 'v1.0.0' }
-        'lower version' { $draft.tag_name = $draft.name = 'v0.9.0' }
+        'lower version' {
+            & $git tag v2.0.0 $baseline
+            $stable.tag_name = 'v2.0.0'
+            $draft.tag_name = $draft.name = 'v1.5.0'
+        }
         'outside main' { $draft.target_commitish = 'other' }
         'stale tag' { & $git tag v1.1.0 $baseline }
         'matching tag' { & $git tag v1.1.0 $head }
