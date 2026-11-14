@@ -11,6 +11,9 @@ using System.Text.Json;
 using System.Xml.Linq;
 
 var root = Directory.GetCurrentDirectory();
+var packageVersion = Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0";
+var versionParts = packageVersion.Split('.');
+var alternateVersion = $"{versionParts[0]}.{versionParts[1]}.{int.Parse(versionParts[2]) + 1}";
 var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
 
 if (string.IsNullOrEmpty(dotnet))
@@ -30,15 +33,22 @@ var persistentPaths = PersistentPaths();
 
 try
 {
-    Run(root, "build", "-c", "Release");
+    Run(root, "build", "-c", "Release", "-p:Version=" + packageVersion);
 
 
-    var output = Path.Combine(root, "artifacts", "packages");
+    var output = Path.GetFullPath(Path.Combine(root, "artifacts", "packages"));
+    Require(output.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Package output must stay within the worktree.");
+
+    if (Directory.Exists(output))
+    {
+        Directory.Delete(output, recursive: true);
+    }
+
     Directory.CreateDirectory(output);
 
-    Run(root, "pack", "-c", "Release", "--no-build", "-o", output);
+    Run(root, "pack", "-c", "Release", "--no-build", "-p:Version=" + packageVersion, "-o", output);
 
-    Run(root, "pack", "src/PinguApps.BlazorContentContracts.Analyzers", "-c", "Release", "--no-build", "-p:Version=1.0.1", "-o", output);
+    Run(root, "pack", "src/PinguApps.BlazorContentContracts.Analyzers", "-c", "Release", "--no-build", "-p:Version=" + alternateVersion, "-o", output);
 
     Run(root, "test", "-c", "Release", "--no-build");
     consumerFramework = "net10.0";
@@ -53,13 +63,24 @@ try
         (prefix + ".Analyzers", $"analyzers/dotnet/cs/{prefix}.Analyzers.dll")
     })
     {
-        using var archive = ZipFile.OpenRead(Path.Combine(output, $"{package}.1.0.0.nupkg"));
+        using var archive = ZipFile.OpenRead(Path.Combine(output, $"{package}.{packageVersion}.nupkg"));
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
         Require(names.Contains(expected), $"{package}: missing {expected}");
         Require(names.Contains("README.md") && names.Contains("LICENSE"), $"{package}: missing package documentation");
 
         using var manifest = archive.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
         var metadata = XDocument.Load(manifest).Descendants().Single(element => element.Name.LocalName == "metadata");
+        Require(metadata.Elements().Single(element => element.Name.LocalName == "id").Value == package
+            && metadata.Elements().Single(element => element.Name.LocalName == "version").Value == packageVersion,
+            $"{package}: package identity/version mismatch");
+        var expectedSource = Environment.GetEnvironmentVariable("BCC_SOURCE_SHA");
+
+        if (!string.IsNullOrEmpty(expectedSource))
+        {
+            Require(metadata.Elements().Any(element => element.Name.LocalName == "repository"
+                && (string?)element.Attribute("commit") == expectedSource), $"{package}: source commit mismatch");
+        }
+
         Require(metadata.Elements().Any(element => element.Name.LocalName == "authors" && element.Value == "PinguApps"),
             $"{package}: missing author");
         Require(metadata.Elements().Any(element => element.Name.LocalName == "license" && element.Value == "MIT"),
@@ -70,7 +91,7 @@ try
             && (string?)element.Attribute("url") == "https://github.com/PinguApps/BlazorContentContracts"
             && !string.IsNullOrEmpty((string?)element.Attribute("commit"))), $"{package}: missing repository commit metadata");
 
-        using var symbols = ZipFile.OpenRead(Path.Combine(output, $"{package}.1.0.0.snupkg"));
+        using var symbols = ZipFile.OpenRead(Path.Combine(output, $"{package}.{packageVersion}.snupkg"));
         var pdb = symbols.Entries.Single(entry => entry.FullName.EndsWith(".pdb", StringComparison.Ordinal));
         using var pdbStream = new MemoryStream();
         using (var source = pdb.Open())
@@ -98,7 +119,7 @@ try
         }
     }
 
-    using (var annotations = ZipFile.OpenRead(Path.Combine(output, prefix + ".1.0.0.nupkg")))
+    using (var annotations = ZipFile.OpenRead(Path.Combine(output, prefix + "." + packageVersion + ".nupkg")))
     {
         using var manifest = annotations.Entries.Single(entry => entry.FullName.EndsWith(".nuspec", StringComparison.Ordinal)).Open();
         Require(XDocument.Load(manifest).Descendants().Any(element => element.Name.LocalName == "dependency"
@@ -136,7 +157,7 @@ try
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup><TargetFramework>net11.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="{{prefix}}" Version="1.0.0" />
+                <PackageReference Include="{{prefix}}" Version="{{packageVersion}}" />
               </ItemGroup>
               <Target Name="RecordAnalyzers" AfterTargets="CoreCompile">
                 <WriteLinesToFile File="analyzers.txt" Lines="@(Analyzer)" Overwrite="true" />
@@ -194,6 +215,8 @@ void Run(string cwd, params string[] arguments)
     start.Environment["BCC_CONSUMER_FRAMEWORK"] = consumerFramework;
     start.Environment["BCC_CONSUMER_DOTNET"] = consumerFramework == "net10.0"
         ? Environment.GetEnvironmentVariable("BCC_NET10_DOTNET") ?? dotnet! : dotnet!;
+    start.Environment["BCC_PACKAGE_VERSION"] = packageVersion;
+    start.Environment["BCC_ALTERNATE_VERSION"] = alternateVersion;
     start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
     start.Environment["DOTNET_HOST_PATH"] = dotnet!;
     start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";

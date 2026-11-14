@@ -357,7 +357,7 @@ internal sealed class RazorBuildFixture : IDisposable
         var packages = Environment.GetEnvironmentVariable("BCC_PACKAGES");
         var references = packages == null
             ? $"<Reference Include=\"PinguApps.BlazorContentContracts\" HintPath=\"{typeof(AllowedChildrenAttribute).Assembly.Location}\" /><Analyzer Include=\"{typeof(ContentContractAnalyzer).Assembly.Location}\" />"
-            : "<PackageReference Include=\"PinguApps.BlazorContentContracts\" Version=\"1.0.0\" /><PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"1.0.0\" />";
+            : $"<PackageReference Include=\"PinguApps.BlazorContentContracts\" Version=\"{Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0"}\" /><PackageReference Include=\"PinguApps.BlazorContentContracts.Analyzers\" Version=\"{Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0"}\" />";
         File.WriteAllText(Path.Combine(directory, "Consumer.csproj"), $$"""
             <Project Sdk="Microsoft.NET.Sdk.Razor">
               <PropertyGroup>
