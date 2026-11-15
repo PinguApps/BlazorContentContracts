@@ -2,7 +2,7 @@ Feature: Framework providers preserve content checking
 
     Scenario Outline: Known providers forward their actual child content
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and <invalid> definite violations
 
         Examples:
@@ -22,5 +22,5 @@ Feature: Framework providers preserve content checking
 
     Scenario: A derived provider rendering override is inspected rather than exempted
         Given a composed Razor consumer using '<Slot><CustomProvider Value="1"><Good /></CustomProvider></Slot>@code { public class CustomProvider : Microsoft.AspNetCore.Components.Forms.InputRadioGroup<int> { protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) { builder.OpenElement(0, "div"); builder.CloseElement(); } } }'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and 1 definite violations

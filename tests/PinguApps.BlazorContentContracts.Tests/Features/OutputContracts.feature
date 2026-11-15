@@ -2,7 +2,7 @@ Feature: Declared output is checked once at its implementation
 
     Scenario Outline: Validate declared fragment factories without repeated caller uncertainty
         Given a declared output factory with body '<body>' and usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:
@@ -16,7 +16,7 @@ Feature: Declared output is checked once at its implementation
 
     Scenario Outline: Trust compatible declarations from real referenced assemblies
         Given a separately compiled output library declaring '<permissions>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:
@@ -26,7 +26,7 @@ Feature: Declared output is checked once at its implementation
 
     Scenario Outline: Suppress implementation uncertainty while preserving definite errors
         Given a locally suppressed output factory emitting '<body>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:
@@ -36,7 +36,7 @@ Feature: Declared output is checked once at its implementation
 
     Scenario Outline: Check component bodies independently of repeated consumers
         Given a declared component output with markup '<markup>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:
@@ -48,7 +48,7 @@ Feature: Declared output is checked once at its implementation
 
     Scenario Outline: Fixed output and forwarded slots form a union at the receiver
         Given fixed and forwarded output received by '<permissions>' with content '<child>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:

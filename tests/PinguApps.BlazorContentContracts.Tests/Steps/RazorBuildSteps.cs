@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using PinguApps.BlazorContentContracts.Tests.Support;
 using Reqnroll;
@@ -8,7 +9,24 @@ namespace PinguApps.BlazorContentContracts.Tests.Steps;
 [Binding]
 public sealed class RazorBuildSteps : IDisposable
 {
-    private readonly RazorBuildFixture fixture = new();
+    private readonly RazorBuildFixture fixture;
+
+    public RazorBuildSteps(ScenarioContext context, FeatureContext feature)
+    {
+        fixture = new RazorBuildFixture(context.ScenarioInfo.Tags.Concat(feature.FeatureInfo.Tags).Contains("Sdk"));
+    }
+
+    [Given("the README example {string}")]
+    public void GivenReadmeExample(string example)
+    {
+        fixture.GivenReadmeExample(example);
+    }
+
+    [Then("the README diagnostics are {string}")]
+    public void ThenReadmeDiagnostics(string expected)
+    {
+        fixture.ThenReadmeDiagnostics(expected);
+    }
 
     [Given("the adoption samples with {string}")]
     public void GivenAdoption(string change)
@@ -124,7 +142,7 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.GivenConsumer(kind);
     }
 
-    [When("the real Razor SDK builds the consumer")]
+    [When("the Razor compiler analyses the consumer")]
     public void WhenBuild()
     {
         fixture.WhenBuild();

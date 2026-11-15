@@ -31,6 +31,7 @@ dotnet = Path.GetFullPath(dotnet!);
 var consumerFramework = "net11.0";
 var processPath = Environment.GetEnvironmentVariable("PATH");
 var persistentPaths = PersistentPaths();
+var verificationTimer = Stopwatch.StartNew();
 string qualificationReceipt;
 
 try
@@ -59,7 +60,7 @@ try
 
     Run(root, "test", "-c", "Release", "--no-build", "--logger", "trx;LogFileName=net11.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RunnableAdoptionExamples|FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent", "--logger", "trx;LogFileName=net10.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "Category=Net10", "--logger", "trx;LogFileName=net10.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
@@ -238,7 +239,7 @@ finally
 }
 
 File.WriteAllText(Path.Combine(root, "artifacts", "packages", "qualification.json"), qualificationReceipt);
-Console.WriteLine("Build, tests, release tracking, package layout and independent consumer passed.");
+Console.WriteLine($"Build, tests, release tracking, package layout and independent consumer passed in {verificationTimer.Elapsed.TotalSeconds:F1}s.");
 
 void Run(string cwd, params string[] arguments)
 {
@@ -253,6 +254,7 @@ void Run(string cwd, params string[] arguments)
     start.Environment["BCC_CONSUMER_DOTNET"] = consumerFramework == "net10.0"
         ? Environment.GetEnvironmentVariable("BCC_NET10_DOTNET") ?? dotnet! : dotnet!;
     start.Environment["BCC_PACKAGE_VERSION"] = packageVersion;
+    start.Environment["BCC_TEST_METRICS"] = Path.Combine(root, "artifacts", "qualification", consumerFramework + ".metrics.json");
     start.Environment["BCC_ALTERNATE_VERSION"] = alternateVersion;
     start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
     start.Environment["DOTNET_HOST_PATH"] = dotnet!;

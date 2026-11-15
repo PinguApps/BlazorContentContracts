@@ -168,7 +168,7 @@ internal sealed class PackageActivationFixture : IDisposable
             RedirectStandardError = true
         };
 
-        foreach (var argument in arguments.Concat(new[] { "--disable-build-servers", "-v:q" }))
+        foreach (var argument in arguments.Concat(new[] { "-v:q" }))
         {
             start.ArgumentList.Add(argument);
         }
@@ -182,6 +182,7 @@ internal sealed class PackageActivationFixture : IDisposable
         start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
         start.Environment["DOTNET_HOST_PATH"] = dotnet;
         start.Environment["DOTNET_ROOT"] = Path.GetDirectoryName(dotnet)!;
+        VerificationMetrics.SdkCommand();
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

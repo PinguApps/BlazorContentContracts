@@ -1,4 +1,4 @@
-Feature: Contracts survive independent NuGet packages
+Feature: Contracts survive independently compiled libraries
 
     Scenario Outline: Consume fixed and forwarded output without library source
         Given independently packed libraries with a '<wrapper>' wrapper
@@ -7,14 +7,9 @@ Feature: Contracts survive independent NuGet packages
 
         Examples:
             | wrapper | rule | count |
-            | csharp | BCC006 | 0 |
             | mixed | BCC006 | 0 |
-            | obsolete | BCC006 | 0 |
-            | custom path | BCC006 | 0 |
             | fixed invalid | BCC009 | 1 |
             | explicit | BCC006 | 0 |
-            | project reference | BCC006 | 0 |
-            | razor | BCC006 | 0 |
             | generic forwarding | BCC006 | 0 |
             | typed forwarding | BCC006 | 0 |
             | invalid forwarding | BCC005 | 1 |
@@ -33,3 +28,26 @@ Feature: Contracts survive independent NuGet packages
             | external generic | BCC005 | 1 |
             | external empty | BCC009 | 1 |
             | external framework derived | BCC005 | 1 |
+
+    @Sdk
+    Scenario Outline: Real NuGet packaging preserves library contracts
+        Given independently packed libraries with a '<wrapper>' wrapper
+        When the packed composition consumer builds
+        Then the packed consumer reports '<rule>' exactly <count> times
+
+        Examples:
+            | wrapper | rule | count |
+            | obsolete | BCC006 | 0 |
+            | custom path | BCC006 | 0 |
+            | project reference | BCC006 | 0 |
+
+    @Sdk @Net10
+    Scenario Outline: Supported hosts consume CSharp and Razor packages
+        Given independently packed libraries with a '<wrapper>' wrapper
+        When the packed composition consumer builds
+        Then the packed consumer reports '<rule>' exactly <count> times
+
+        Examples:
+            | wrapper | rule | count |
+            | csharp | BCC006 | 0 |
+            | razor | BCC006 | 0 |

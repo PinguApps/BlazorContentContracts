@@ -2,7 +2,7 @@ Feature: ErrorBoundary output preserves content checking
 
     Scenario Outline: Normal and error templates obey the receiving contract
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and <invalid> definite violations
 
         Examples:
@@ -17,7 +17,7 @@ Feature: ErrorBoundary output preserves content checking
 
     Scenario Outline: Allowed HTML remains recursive and explicit components remain terminal
         Given a forwarding parameter allowing '<permissions>' with usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and <invalid> definite violations
 
         Examples:

@@ -2,7 +2,7 @@ Feature: AuthorizeView branches preserve content checking
 
     Scenario Outline: Every possible authorization branch obeys the receiving contract
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and <invalid> definite violations
 
         Examples:

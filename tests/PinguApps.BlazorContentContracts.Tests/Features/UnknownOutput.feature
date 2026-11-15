@@ -2,13 +2,13 @@ Feature: Unknown output retains partial knowledge
 
     Scenario: Derived framework output stays uncertain in a real consumer
         Given a composed Razor consumer using '<Slot><CustomBoundary /><Bad /></Slot>@code { public class CustomBoundary : Microsoft.AspNetCore.Components.Web.ErrorBoundary { } }'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 1 warnings and 1 definite violations
         And the Razor build explains 'derived framework component behaviour is not qualified'
 
     Scenario Outline: Explain unresolved output alongside definite violations
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:
@@ -24,12 +24,12 @@ Feature: Unknown output retains partial knowledge
     Scenario: Promote uncertainty through editor configuration
         Given a composed Razor consumer using '<Slot>@Fragment</Slot>@code { private RenderFragment Fragment { get; set; } }'
         And unknown output severity is "error"
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output is an error
 
     Scenario Outline: Control-flow method calls do not emit content
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:

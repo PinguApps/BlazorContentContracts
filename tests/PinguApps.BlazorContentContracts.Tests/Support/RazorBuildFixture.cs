@@ -12,6 +12,13 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class RazorBuildFixture : IDisposable
 {
+    private bool useSdk;
+
+    public RazorBuildFixture(bool useSdk = false)
+    {
+        this.useSdk = useSdk;
+    }
+
     public void GivenAdoption(string change)
     {
         GivenConsumer("empty");
@@ -35,6 +42,22 @@ internal sealed class RazorBuildFixture : IDisposable
     public void ThenOutputContains(string text)
     {
         Assert.Contains(text, output);
+    }
+
+    public void GivenReadmeExample(string example)
+    {
+        GivenConsumer("empty");
+        ReadmeExamples.Write(directory, File.ReadAllText(Path.Combine(RepositoryRoot(), "README.md")), example);
+    }
+
+    public void ThenReadmeDiagnostics(string expected)
+    {
+        using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));
+        var results = sarif.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToArray();
+        Assert.DoesNotContain(results, result => !result.GetProperty("ruleId").GetString()!.StartsWith("BCC", StringComparison.Ordinal));
+        var ids = results.Select(result => result.GetProperty("ruleId").GetString()).Distinct().OrderBy(id => id);
+        Assert.Equal(expected == "none" ? Array.Empty<string>() : expected.Split(',').OrderBy(id => id), ids);
+        Assert.Equal(expected.Split(',').Any(id => id is "BCC005" or "BCC009" or "BCC010") ? 1 : 0, exitCode);
     }
 
     private readonly string directory = Path.Combine(Path.GetTempPath(), "bcc-razor-" + Guid.NewGuid().ToString("N"));
@@ -687,6 +710,13 @@ internal sealed class RazorBuildFixture : IDisposable
 
     public void WhenBuild(bool analysis = true)
     {
+        if (!useSdk && !editorLocations && !Directory.Exists(Path.Combine(directory, "Library"))
+            && !File.Exists(Path.Combine(directory, "Program.cs")))
+        {
+            (exitCode, output) = RazorCompiler.Analyse(directory, analysis);
+            return;
+        }
+
         var dotnet = Environment.GetEnvironmentVariable("BCC_CONSUMER_DOTNET") ?? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? throw new InvalidOperationException("DOTNET_HOST_PATH must identify the selected SDK executable.");
         var start = new ProcessStartInfo(dotnet)
@@ -698,7 +728,6 @@ internal sealed class RazorBuildFixture : IDisposable
         };
         start.ArgumentList.Add("build");
         start.ArgumentList.Add("-v:q");
-        start.ArgumentList.Add("--disable-build-servers");
 
         if (!analysis)
         {
@@ -731,6 +760,7 @@ internal sealed class RazorBuildFixture : IDisposable
 
         start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
         start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        VerificationMetrics.SdkCommand();
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -748,6 +778,7 @@ internal sealed class RazorBuildFixture : IDisposable
 
     public void VerifyEditInvalidation(string kind)
     {
+        useSdk = true;
         if (kind == "referenced summary")
         {
             GivenPublishedOutput("typeof(Good)");
@@ -796,6 +827,7 @@ internal sealed class RazorBuildFixture : IDisposable
 
     public void MeasureBoundedBuild(string kind)
     {
+        useSdk = true;
         GivenBoundedOutput(kind);
 
         foreach (var analysis in new[] { true, false, true, false })
