@@ -243,6 +243,17 @@ Console.WriteLine($"Build, tests, release tracking, package layout and independe
 
 void Run(string cwd, params string[] arguments)
 {
+    var isTest = arguments[0] == "test";
+    var resultsDirectory = Path.Combine(root, "artifacts", "qualification");
+    var metricsPath = Path.Combine(resultsDirectory, consumerFramework + ".metrics.json");
+    var testReceipt = Path.Combine(resultsDirectory, consumerFramework == "net10.0" ? "net10.trx" : "net11.trx");
+
+    if (isTest)
+    {
+        File.Delete(metricsPath);
+        File.Delete(testReceipt);
+    }
+
     var start = new ProcessStartInfo(dotnet!) { WorkingDirectory = cwd, UseShellExecute = false };
 
     foreach (var argument in arguments)
@@ -254,7 +265,7 @@ void Run(string cwd, params string[] arguments)
     start.Environment["BCC_CONSUMER_DOTNET"] = consumerFramework == "net10.0"
         ? Environment.GetEnvironmentVariable("BCC_NET10_DOTNET") ?? dotnet! : dotnet!;
     start.Environment["BCC_PACKAGE_VERSION"] = packageVersion;
-    start.Environment["BCC_TEST_METRICS"] = Path.Combine(root, "artifacts", "qualification", consumerFramework + ".metrics.json");
+    start.Environment["BCC_TEST_METRICS"] = metricsPath;
     start.Environment["BCC_ALTERNATE_VERSION"] = alternateVersion;
     start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
     start.Environment["DOTNET_HOST_PATH"] = dotnet!;
@@ -266,6 +277,21 @@ void Run(string cwd, params string[] arguments)
     process.WaitForExit();
 
     Require(process.ExitCode == 0, $"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}.");
+
+    if (isTest)
+    {
+        var receipt = XDocument.Load(testReceipt);
+        var counters = receipt.Descendants().Single(element => element.Name.LocalName == "Counters");
+        Require(int.Parse(counters.Attribute("total")!.Value) > 0, "The test filter selected no scenarios.");
+        using var metrics = JsonDocument.Parse(File.ReadAllText(metricsPath));
+        Require(metrics.RootElement.GetProperty("sdkCommands").GetInt32() > 0, "Real SDK integration did not run.");
+
+        if (consumerFramework == "net10.0")
+        {
+            Require(metrics.RootElement.GetProperty("compilerInvocations").GetInt32() == 0,
+                "The .NET 10 pass must use its actual SDK rather than the .NET 11 in-process compiler.");
+        }
+    }
 }
 
 static void Require(bool condition, string message)
