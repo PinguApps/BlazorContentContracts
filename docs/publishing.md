@@ -24,8 +24,9 @@ set. The draft-publication channel below has a separate activation guard.
 and Sunday 10:17 UTC (`17 10 * * 0`). Scheduled runs do nothing until the owner
 sets `WEEKLY_PUBLISH_ENABLED=true`. Both that variable and
 `NUGET_PUBLISH_ENABLED=true` are required to publish a draft, including manually.
-Do not set them as part of this implementation. Owner activation follows the
-first stable release, live-feed verification and a refreshed schedule audit.
+Pingu approved and enabled weekly publication on 2026-11-15 after the first
+stable release, live-feed verification and a refreshed schedule audit; see the
+[activation record](weekly-publishing-activation.md).
 
 The selector requires an existing stable release on main, new commits on main,
 and exactly one stable draft with a strictly greater stable version. Dependency,
@@ -48,16 +49,17 @@ in that run or dispatch `publish.yml` with `tag=<already-published-tag>` and
 `dry-run=false`, with the repository variable `NUGET_PUBLISH_ENABLED=true`. A new weekly
 run intentionally does not republish it. Fix content using a new version.
 
-The [2026-11-15 activation audit](publishing-schedule-audit.md) confirms the provisional slot remains separated and records every inspected repository and cron. Owner approval and activation remain PIN-1283 work.
+The [2026-11-15 activation audit](publishing-schedule-audit.md) confirms the slot remains separated and records every inspected repository and cron. The [activation record](weekly-publishing-activation.md) documents Pingu's approval, the enabled gate and the next scheduled-run monitoring handoff.
 
 The 2026-11-14 read-only audit of PinguApps repositories found draft-publishing
 Sunday UTC slots: Dashboard.Railway 08:02, RabbitMQ.Railway 08:17,
 Railway.Jobs 08:32, Railway 08:47, RazorStyle 09:02, Upstash.Redis 09:17,
 PostgreSQL.Railway and UpdateAssistant 09:32, BlazorSitemap 09:39,
 Bunny.Storage 09:47, CodeStyle.Analyzers 10:02, and Playbook 18:17.
-10:17 is provisional and separated by 15 minutes from the latest morning slot.
-This is a snapshot of matching draft-publication workflows, not a reservation;
-the owner must refresh the portfolio audit before activation.
+The refreshed 2026-11-15 audit confirmed the 10:17 slot, separated by 15 minutes
+from the latest morning publisher. Pingu approved and activated it; the next
+nominal run is 2026-11-22 10:17 UTC. The snapshot does not reserve the slot;
+repeat the audit if changing the schedule or reactivating after a prolonged pause.
 
 Offline Gherkin scenarios exercise `Select-ReleaseDraft.ps1` against temporary
 real Git repositories without GitHub writes or NuGet access. A manual dry run
