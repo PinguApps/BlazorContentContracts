@@ -48,6 +48,8 @@ in that run or dispatch `publish.yml` with `tag=<already-published-tag>` and
 `dry-run=false`, with the repository variable `NUGET_PUBLISH_ENABLED=true`. A new weekly
 run intentionally does not republish it. Fix content using a new version.
 
+The [2026-11-15 activation audit](publishing-schedule-audit.md) confirms the provisional slot remains separated and records every inspected repository and cron. Owner approval and activation remain PIN-1283 work.
+
 The 2026-11-14 read-only audit of PinguApps repositories found draft-publishing
 Sunday UTC slots: Dashboard.Railway 08:02, RabbitMQ.Railway 08:17,
 Railway.Jobs 08:32, Railway 08:47, RazorStyle 09:02, Upstash.Redis 09:17,
