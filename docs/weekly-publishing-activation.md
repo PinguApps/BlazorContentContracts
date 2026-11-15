@@ -5,6 +5,8 @@ and activation in the implementation conversation on 2026-11-15.
 The repository variable `WEEKLY_PUBLISH_ENABLED=true` was set and read back
 through authenticated GitHub APIs at **2026-11-15 21:57:42 UTC**.
 `NUGET_PUBLISH_ENABLED=true` remains unchanged. The scheduled workflow is active.
+The workflow's inline "Provisional" comment records its preparation history;
+this activation record supersedes that comment. Its cron and guards are unchanged.
 
 ## Prerequisite evidence
 
