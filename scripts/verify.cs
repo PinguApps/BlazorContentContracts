@@ -250,6 +250,7 @@ void Run(string cwd, params string[] arguments)
 
     if (isTest)
     {
+        Directory.CreateDirectory(resultsDirectory);
         File.Delete(metricsPath);
         File.Delete(testReceipt);
     }
