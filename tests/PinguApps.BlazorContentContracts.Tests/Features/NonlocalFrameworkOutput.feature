@@ -2,7 +2,7 @@ Feature: Relocated and nontransparent framework output
 
     Scenario Outline: Classify local output rather than apparent invisibility
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:
@@ -35,7 +35,7 @@ Feature: Relocated and nontransparent framework output
 
     Scenario Outline: Allowed possible HTML still checks descendants
         Given a markup contract allowing '<html>' with text 'false' and usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and <invalid> definite violations
 
         Examples:
@@ -45,5 +45,5 @@ Feature: Relocated and nontransparent framework output
 
     Scenario: EditForm preserves known violations alongside version-specific uncertainty
         Given a composed Razor consumer using '<Slot><Microsoft.AspNetCore.Components.Forms.EditForm Model="@(new object())"><Bad /></Microsoft.AspNetCore.Components.Forms.EditForm></Slot>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then EditForm output has 3 definite violations and version-specific uncertainty

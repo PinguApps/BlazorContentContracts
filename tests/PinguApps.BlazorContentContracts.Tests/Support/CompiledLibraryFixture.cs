@@ -9,6 +9,13 @@ namespace PinguApps.BlazorContentContracts.Tests.Support;
 
 internal sealed class CompiledLibraryFixture : IDisposable
 {
+    private readonly bool useSdk;
+
+    public CompiledLibraryFixture(bool useSdk = false)
+    {
+        this.useSdk = useSdk;
+    }
+
     private static string PackageVersion => Environment.GetEnvironmentVariable("BCC_PACKAGE_VERSION") ?? "1.0.0";
 
     private readonly string directory = Path.Combine(Path.GetTempPath(), "bcc-compiled-" + Guid.NewGuid().ToString("N"));
@@ -319,6 +326,27 @@ internal sealed class CompiledLibraryFixture : IDisposable
 
     private void Run(string project, params string[] arguments)
     {
+        if (!useSdk)
+        {
+            if (!arguments.SequenceEqual(new[] { "build" }) && !arguments.SequenceEqual(new[] { "pack", "-o", directory }))
+            {
+                throw new InvalidOperationException("Unmodelled MSBuild arguments. Use an @Sdk scenario.");
+            }
+
+            var projectDirectory = Path.Combine(directory, project);
+            var enabled = !File.ReadAllText(Path.Combine(projectDirectory, project + ".csproj"))
+                .Contains("<BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>", StringComparison.Ordinal);
+            (exitCode, output) = RazorCompiler.Analyse(projectDirectory, enabled, Directory.GetFiles(directory, "*.dll"),
+                emit: project != "Consumer", summaries: project != "Consumer");
+
+            if (exitCode == 0 && project != "Consumer")
+            {
+                File.Copy(Path.Combine(projectDirectory, project + ".dll"), Path.Combine(directory, project + ".dll"), overwrite: true);
+            }
+
+            return;
+        }
+
         var dotnet = Environment.GetEnvironmentVariable("BCC_CONSUMER_DOTNET") ?? Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? throw new InvalidOperationException("DOTNET_HOST_PATH must identify the SDK.");
         var start = new ProcessStartInfo(dotnet)
@@ -329,7 +357,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
             RedirectStandardError = true
         };
 
-        foreach (var argument in arguments.Concat(new[] { "--disable-build-servers", "-v:q" }))
+        foreach (var argument in arguments.Concat(new[] { "-v:q" }))
         {
             start.ArgumentList.Add(argument);
         }
@@ -343,6 +371,7 @@ internal sealed class CompiledLibraryFixture : IDisposable
         start.Environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
         start.Environment["DOTNET_HOST_PATH"] = dotnet;
         start.Environment["DOTNET_ROOT"] = Path.GetDirectoryName(dotnet)!;
+        VerificationMetrics.SdkCommand();
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

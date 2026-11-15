@@ -1,7 +1,8 @@
-Feature: Real Razor build diagnostics
+Feature: Razor content diagnostics
+    @Sdk @Net10
     Scenario Outline: Static restricted slots use original Razor locations
         Given a Razor consumer with "<content>" content
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the build has "<outcome>" content contract diagnostics
 
         Examples:
@@ -11,9 +12,10 @@ Feature: Real Razor build diagnostics
             | empty   | none |
             | comment | one error |
 
+    @Sdk @Net10
     Scenario Outline: Declaration annotations work in a real packaged Razor consumer
         Given a Razor consumer with "<content>" content
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the build has "<outcome>" declaration diagnostics
 
         Examples:
@@ -23,7 +25,7 @@ Feature: Real Razor build diagnostics
 
     Scenario Outline: Component families retain inherited slot permissions
         Given a family contract allowing "<allowance>" with '<usage>' and "<inheritance>"
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the family build reports "<rule>" exactly <errors> times
 
         Examples:
@@ -45,7 +47,7 @@ Feature: Real Razor build diagnostics
 
     Scenario Outline: HTML containers and text permissions remain independent
         Given a markup contract allowing "<html>" with text "<text>" and usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the markup build reports "<rule>" exactly <count> times
 
         Examples:
@@ -77,7 +79,7 @@ Feature: Real Razor build diagnostics
 
     Scenario Outline: Composition checks every emitted branch and the correct slot
         Given a composed Razor consumer using '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the markup build reports "BCC005" exactly <count> times
 
         Examples:

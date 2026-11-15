@@ -2,7 +2,7 @@ Feature: Local wrappers contribute their actual output
 
     Scenario Outline: Expand output and every emitted template at the consumer
         Given a local wrapper with output '<output>' and usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:
@@ -26,5 +26,5 @@ Feature: Local wrappers contribute their actual output
 
     Scenario: Explain the wrapper path at its consumer usage
         Given a local wrapper with output '<span />' and usage '<Wrapper />'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the wrapper violation names its path at the consumer

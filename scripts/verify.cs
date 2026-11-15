@@ -31,6 +31,7 @@ dotnet = Path.GetFullPath(dotnet!);
 var consumerFramework = "net11.0";
 var processPath = Environment.GetEnvironmentVariable("PATH");
 var persistentPaths = PersistentPaths();
+var verificationTimer = Stopwatch.StartNew();
 string qualificationReceipt;
 
 try
@@ -59,7 +60,7 @@ try
 
     Run(root, "test", "-c", "Release", "--no-build", "--logger", "trx;LogFileName=net11.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net10.0";
-    Run(root, "test", "-c", "Release", "--no-build", "--filter", "FullyQualifiedName~RunnableAdoptionExamples|FullyQualifiedName~CleanConsumers|FullyQualifiedName~RelocatedAndNontransparent|FullyQualifiedName~VirtualizeOutput|FullyQualifiedName~ErrorBoundaryOutput|FullyQualifiedName~AuthorizeViewBranchesPreserveContentChecking|FullyQualifiedName~FrameworkProvidersPreserveContentChecking|FullyQualifiedName~EditorDiagnostics|FullyQualifiedName~RealRazorBuildDiagnostics|FullyQualifiedName~UnknownOutput|FullyQualifiedName~RazorSuppressions|FullyQualifiedName~LocalWrappers|FullyQualifiedName~ParameterContracts|FullyQualifiedName~DeclaredOutput|FullyQualifiedName~FragmentAssignments|FullyQualifiedName~BoundedAnalysis|FullyQualifiedName~ContractsSurviveIndependent", "--logger", "trx;LogFileName=net10.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
+    Run(root, "test", "-c", "Release", "--no-build", "--filter", "Category=Net10", "--logger", "trx;LogFileName=net10.trx", "--results-directory", Path.Combine(root, "artifacts", "qualification"));
     consumerFramework = "net11.0";
 
     const string prefix = "PinguApps.BlazorContentContracts";
@@ -238,10 +239,22 @@ finally
 }
 
 File.WriteAllText(Path.Combine(root, "artifacts", "packages", "qualification.json"), qualificationReceipt);
-Console.WriteLine("Build, tests, release tracking, package layout and independent consumer passed.");
+Console.WriteLine($"Build, tests, release tracking, package layout and independent consumer passed in {verificationTimer.Elapsed.TotalSeconds:F1}s.");
 
 void Run(string cwd, params string[] arguments)
 {
+    var isTest = arguments[0] == "test";
+    var resultsDirectory = Path.Combine(root, "artifacts", "qualification");
+    var metricsPath = Path.Combine(resultsDirectory, consumerFramework + ".metrics.json");
+    var testReceipt = Path.Combine(resultsDirectory, consumerFramework == "net10.0" ? "net10.trx" : "net11.trx");
+
+    if (isTest)
+    {
+        Directory.CreateDirectory(resultsDirectory);
+        File.Delete(metricsPath);
+        File.Delete(testReceipt);
+    }
+
     var start = new ProcessStartInfo(dotnet!) { WorkingDirectory = cwd, UseShellExecute = false };
 
     foreach (var argument in arguments)
@@ -253,6 +266,7 @@ void Run(string cwd, params string[] arguments)
     start.Environment["BCC_CONSUMER_DOTNET"] = consumerFramework == "net10.0"
         ? Environment.GetEnvironmentVariable("BCC_NET10_DOTNET") ?? dotnet! : dotnet!;
     start.Environment["BCC_PACKAGE_VERSION"] = packageVersion;
+    start.Environment["BCC_TEST_METRICS"] = metricsPath;
     start.Environment["BCC_ALTERNATE_VERSION"] = alternateVersion;
     start.Environment["BCC_PACKAGES"] = Path.Combine(root, "artifacts", "packages");
     start.Environment["DOTNET_HOST_PATH"] = dotnet!;
@@ -264,6 +278,21 @@ void Run(string cwd, params string[] arguments)
     process.WaitForExit();
 
     Require(process.ExitCode == 0, $"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}.");
+
+    if (isTest)
+    {
+        var receipt = XDocument.Load(testReceipt);
+        var counters = receipt.Descendants().Single(element => element.Name.LocalName == "Counters");
+        Require(int.Parse(counters.Attribute("total")!.Value) > 0, "The test filter selected no scenarios.");
+        using var metrics = JsonDocument.Parse(File.ReadAllText(metricsPath));
+        Require(metrics.RootElement.GetProperty("sdkCommands").GetInt32() > 0, "Real SDK integration did not run.");
+
+        if (consumerFramework == "net10.0")
+        {
+            Require(metrics.RootElement.GetProperty("compilerInvocations").GetInt32() == 0,
+                "The .NET 10 pass must use its actual SDK rather than the .NET 11 in-process compiler.");
+        }
+    }
 }
 
 static void Require(bool condition, string message)

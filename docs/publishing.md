@@ -1,5 +1,11 @@
 # Stable publication
 
+PRs and releases use the same [verification suite](verification.md). Its detailed
+compiler cases run in-process, with focused real SDK/package integration on both
+supported frameworks. The automatic post-merge duplicate has been removed; manual
+qualification remains available. Each release still qualifies its exact versioned
+artifacts before OIDC publication, without repacking them afterward.
+
 `publish.yml` handles `release.published`, explicit manual tag dispatch and local
 reusable calls. A published, non-preview GitHub release must already exist. Its
 name must equal its `vMAJOR.MINOR.PATCH` tag or the version without `v`, and notes

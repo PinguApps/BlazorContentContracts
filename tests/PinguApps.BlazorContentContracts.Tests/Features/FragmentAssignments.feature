@@ -9,7 +9,7 @@ Feature: Fragment assignments preserve every possible output
                 <write>
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:
@@ -27,7 +27,7 @@ Feature: Fragment assignments preserve every possible output
             @{ RenderFragment value = b => { }; value = b => { b.AddContent(0, "bad"); }; }
             <Slot ChildContent="@value" />
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and 1 definite violations
 
     Scenario: Check a typed fragment reassigned during lifecycle
@@ -39,7 +39,7 @@ Feature: Fragment assignments preserve every possible output
                 protected override void OnInitialized() { fragment = item => b => { b.AddContent(0, "bad"); }; }
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and 1 definite violations
 
     Scenario: Preserve opaque output through a local alias
@@ -49,7 +49,7 @@ Feature: Fragment assignments preserve every possible output
             <Slot ChildContent="@alias" />
             @code { private RenderFragment Service() => throw new System.Exception(); }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 1 warnings and 0 definite violations
 
     Scenario: Check writes to an annotated parameter used by a restricted slot
@@ -62,7 +62,7 @@ Feature: Fragment assignments preserve every possible output
                 protected override void OnInitialized() { Content = b => { b.AddContent(0, "bad"); }; }
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports 'BCC010' exactly 1 times
 
     Scenario: Delegate addition checks both operands
@@ -71,7 +71,7 @@ Feature: Fragment assignments preserve every possible output
             @{ RenderFragment good = b => { }; RenderFragment bad = b => { b.AddContent(0, "bad"); }; RenderFragment combined = good + bad; }
             <Slot ChildContent="@combined" />
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and 1 definite violations
 
     Scenario: Inspect getter return values
@@ -80,7 +80,7 @@ Feature: Fragment assignments preserve every possible output
             <Slot>@Content</Slot>
             @code { private RenderFragment Content { get { RenderFragment value = b => { }; value = b => { b.AddContent(0, "bad"); }; return value; } } }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 0 warnings and 1 definite violations
 
     Scenario: Check an unused contracted property write
@@ -93,7 +93,7 @@ Feature: Fragment assignments preserve every possible output
                 private void Click() { Content = item => b => { b.AddContent(0, "bad"); }; }
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports 'BCC010' exactly 1 times
 
     Scenario: An opaque write to a contracted property remains unknown
@@ -107,7 +107,7 @@ Feature: Fragment assignments preserve every possible output
                 private void Click() { Content = Service(); }
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports 'BCC011' exactly 1 times
 
     Scenario: Declared factory returns include local reassignment
@@ -124,12 +124,12 @@ Feature: Fragment assignments preserve every possible output
                 }
             }
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports 'BCC010' exactly 1 times
 
     Scenario: Inherited contract storage writes are checked
         Given a family contract allowing 'Good' with '' and 'public override RenderFragment ChildContent { get; set; } = b => { b.AddContent(0, "bad"); };'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the family build reports 'BCC010' exactly 1 times
 
     Scenario: Captured factory output remains unknown
@@ -138,5 +138,5 @@ Feature: Fragment assignments preserve every possible output
             @{ RenderFragment captured = b => { }; System.Func<RenderFragment> factory = () => captured; }
             <Slot>@factory()</Slot>
             """
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has 1 warnings and 0 definite violations

@@ -3,7 +3,7 @@ Feature: Razor suppressions acknowledge one unknown usage
     Scenario Outline: Suppress only the next usage and specified diagnostic
         Given a composed Razor consumer using '<usage>'
         And unknown output severity is "error"
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then suppression diagnostics are '<rules>'
 
         Examples:
@@ -40,10 +40,10 @@ Feature: Razor suppressions acknowledge one unknown usage
             @code { private RenderFragment Fragment { get; set; } }
             """
         And unknown output severity is "error"
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then suppression diagnostics are 'none'
 
     Scenario: Suppression comments preserve rendered output
         Given a Razor rendering comparison with a suppression comment
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the suppressed and original components render identical markup

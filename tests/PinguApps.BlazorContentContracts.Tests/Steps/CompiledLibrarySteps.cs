@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using PinguApps.BlazorContentContracts.Tests.Support;
 using Reqnroll;
 
@@ -7,7 +8,12 @@ namespace PinguApps.BlazorContentContracts.Tests.Steps;
 [Binding]
 public sealed class CompiledLibrarySteps : IDisposable
 {
-    private readonly CompiledLibraryFixture fixture = new();
+    private readonly CompiledLibraryFixture fixture;
+
+    public CompiledLibrarySteps(ScenarioContext context, FeatureContext feature)
+    {
+        fixture = new CompiledLibraryFixture(context.ScenarioInfo.Tags.Concat(feature.FeatureInfo.Tags).Contains("Sdk"));
+    }
 
     [Given("independently packed libraries with a {string} wrapper")]
     public void GivenLibraries(string wrapper)

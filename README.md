@@ -23,6 +23,7 @@ The main package supplies the attributes and activates the analyzer automaticall
 Add the namespace to `_Imports.razor`:
 
 ```razor
+@using Microsoft.AspNetCore.Components
 @using PinguApps.BlazorContentContracts
 ```
 
@@ -69,9 +70,70 @@ These usages fail with BCC005:
 </Menu>
 ```
 
-`MenuItem` and its derived components are accepted as boundaries: their own HTML and text are not expanded. Other inspectable components are expanded and their output must fit the contract. A local wrapper that emits only `MenuItem` works; a wrapper that adds a `div` does not.
+An unaccepted Razor component cannot hide forbidden output either. Define `Bad.razor`:
+
+```razor
+<button>Not a menu item</button>
+```
+
+This also fails with **BCC005**:
+
+```razor
+<Menu>
+    <Bad />
+</Menu>
+```
+
+The analyzer opens `Bad`, finds its forbidden button/text and reports the problem at the usage. This is an output contract: an unlisted component is inspected, rather than rejected solely because its type is absent. A component that emits only permitted output can still pass, as the wrapper examples below show.
 
 Empty content is valid. Whitespace and Razor comments do not count as visible text. Contracts do not require a parent, a minimum number of children or a particular runtime parameter combination.
+
+## Accepted components stop inspection
+
+`Menu` permits `MenuItem`. The analyzer accepts that component as a whole. Its internal `<a>` and `Home` text are allowed even though the menu contract does not permit arbitrary HTML or text:
+
+```razor
+<Menu>
+    <MenuItem /> @* Accepted: MenuItem is explicitly permitted. *@
+</Menu>
+```
+
+Suppose you extend `MenuItem.razor` to accept unrestricted content:
+
+```razor
+@using Microsoft.AspNetCore.Components
+
+<a href="/">@ChildContent</a>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+The menu still stops at `MenuItem`, including its supplied child content:
+
+```razor
+<Menu>
+    <MenuItem>
+        <div>Custom item content</div>
+        <Bad />
+    </MenuItem>
+</Menu>
+```
+
+**Accepted by the menu contract.** This is useful when a menu item owns its own rendering and customisation rules. It also means that permitting a component is a deliberate promise: the menu does not police everything inside that component.
+
+To restrict the item's content too, give **its own** fragment parameter a contract:
+
+```razor
+@code {
+    [Parameter, AllowedChildren(HtmlElements = new[] { "strong" }, AllowText = true)]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+Now `<MenuItem><strong>Home</strong></MenuItem>` passes. `<MenuItem><Bad /></MenuItem>` fails with BCC005 under the **item's** contract. The enclosing menu's acceptance does not disable checks belonging to other restricted slots.
 
 ## Allow selected HTML and text
 
@@ -107,20 +169,353 @@ This fails with BCC005 because allowing a container does not allow arbitrary des
 
 `HtmlElements` defaults to empty and matches names without case sensitivity. `AllowText` defaults to `false`, including inside permitted HTML. You can combine HTML/text permissions with component types in the same attribute.
 
+## Accepted HTML still checks its contents
+
+HTML permissions work differently from accepted component types. Allowing `<div>` permits that tag; its children must independently fit the same contract.
+
+For example, create `GroupedMenu.razor`:
+
+```razor
+@using Microsoft.AspNetCore.Components
+@using PinguApps.BlazorContentContracts
+
+@ChildContent
+
+@code {
+    [Parameter, AllowedChildren(typeof(MenuItem), HtmlElements = new[] { "div" })]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+This passes: each div is allowed, and inspection stops at each accepted menu item.
+
+```razor
+<GroupedMenu>
+    <div>
+        <MenuItem />
+        <div><MenuItem /></div>
+    </div>
+</GroupedMenu>
+```
+
+Each of these fails with BCC005:
+
+```razor
+<GroupedMenu><div><button /></div></GroupedMenu>
+@* The div is allowed; the nested button is not. *@
+
+<GroupedMenu><div><Bad /></div></GroupedMenu>
+@* Bad is expanded and its forbidden output is found. *@
+
+<GroupedMenu><div>A heading</div></GroupedMenu>
+@* AllowText defaults to false, including inside allowed HTML. *@
+```
+
+To permit the last example, set `AllowText = true`. That permits visible text; it does not grant permission for buttons or other HTML elements.
+
+| Encountered content | What happens next |
+| --- | --- |
+| Explicitly accepted component, or a derived component | Accept it and stop expanding its output for this receiving contract. |
+| Accepted HTML tag | Accept the tag, then check everything inside it. |
+| Other inspectable component | Expand its output and check that output against the receiving contract. |
+| Unavailable or otherwise opaque output | Report uncertainty rather than assume it is valid. |
+
+## Extract wrappers without losing checking
+
+Create `MenuGroup.razor`:
+
+```razor
+<MenuItem />
+<MenuItem />
+```
+
+It does not have to appear in `Menu`'s accepted type list:
+
+```razor
+<Menu>
+    <MenuGroup />
+</Menu>
+```
+
+**Accepted.** `MenuGroup` is expanded, and both components it emits are accepted menu items.
+
+Changing the wrapper to this makes the same usage fail with BCC005:
+
+```razor
+<div>
+    <MenuItem />
+</div>
+```
+
+The wrapper added a div that `Menu` does not permit. If you deliberately add `typeof(MenuGroup)` to the menu contract, the wrapper becomes an accepted component and inspection stops there instead. Do that only when accepting the wrapper's complete output is what you intend.
+
+Forwarding works too. Create `MenuItems.razor`:
+
+```razor
+@using Microsoft.AspNetCore.Components
+
+@ChildContent
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+```razor
+<Menu><MenuItems><MenuItem /></MenuItems></Menu> @* Accepted. *@
+<Menu><MenuItems><Bad /></MenuItems></Menu>      @* BCC005. *@
+```
+
+The wrapper does not hide the supplied fragment. Each emitted template contributes output; an unused fragment parameter does not.
+
+## Check every possible branch
+
+```razor
+<Menu>
+    @if (showItem)
+    {
+        <MenuItem />
+    }
+    else
+    {
+        <Bad />
+    }
+</Menu>
+
+@code {
+    private bool showItem = true;
+}
+```
+
+**BCC005**, even though `showItem` starts as true. The analyzer checks possible output rather than executing the application. The same rule applies to switch alternatives, loop bodies, loading/error/empty templates and fragment assignments. A false branch cannot be used to hide a violation.
+
 ## Generics, named slots and composition
 
-- `AllowedChildren(typeof(Row<>))` accepts every constructed `Row<T>` and its derived components. `typeof(Row<int>)` accepts that construction and its subclasses, but not `Row<string>`.
-- Apply a contract to each named `RenderFragment` or `RenderFragment<T>` parameter independently. Inherited parameter contracts remain in force; conflicting redeclarations report BCC003.
-- Every possible branch, loop body and emitted template is checked. A currently false branch does not make invalid content acceptable.
-- Annotated fragments keep their permissions when forwarded. Those permissions must fit entirely inside the receiving contract (BCC009).
-- `ProducesContent` describes fixed component or fragment-factory output; `ForwardsContent` describes emitted fragment parameters. Available implementations are checked against these promises. Supported compiled summaries preserve output across project and NuGet references.
-- Consumer-owned `ExternalContent` and `ExternalForwarding` attributes can describe third-party components. Nonempty fixed output claims require explicit `Trusted = true` and review of the component's possible output.
+### Open and closed generic component types
+
+Create `Row.razor`:
+
+```razor
+@typeparam TItem
+
+<tr><td>@Value</td></tr>
+
+@code {
+    [Parameter]
+    public TItem? Value { get; set; }
+}
+```
+
+In `Rows.razor`, use an open generic to allow every construction:
+
+```razor
+@ChildContent
+
+@code {
+    [Parameter, AllowedChildren(typeof(Row<>))]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+Both rows are accepted, and their internal HTML is not expanded:
+
+```razor
+<Rows>
+    <Row TItem="int" Value="42" />
+    <Row TItem="string" Value='@("Hello")' />
+</Rows>
+```
+
+Change the contract to `AllowedChildren(typeof(Row<int>))`:
+
+```razor
+<Rows><Row TItem="int" Value="42" /></Rows>          @* Accepted. *@
+<Rows><Row TItem="string" Value='@("Hello")' /></Rows> @* BCC005; output may also warn BCC004. *@
+```
+
+The unaccepted string row is expanded: its tr/td HTML violates the contract (BCC005), and its runtime `Value` output can additionally be opaque (BCC004). The accepted integer row stops expansion and does not produce those findings.
+
+Derived types are accepted too. A `FeaturedRow : Row<int>` satisfies the closed `Row<int>` contract; a component with the same short name from a different namespace does not gain that permission. An unaccepted type's inspectable output is expanded normally.
+
+### Different rules for different slots
+
+Create `PageSection.razor`:
+
+```razor
+@Header
+@Body
+
+@code {
+    [Parameter, AllowedChildren(HtmlElements = new[] { "h2" }, AllowText = true)]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter, AllowedChildren(typeof(MenuItem))]
+    public RenderFragment? Body { get; set; }
+}
+```
+
+This passes:
+
+```razor
+<PageSection>
+    <Header><h2>Navigation</h2></Header>
+    <Body><MenuItem /></Body>
+</PageSection>
+```
+
+This fails with BCC005 in the body, even though the same HTML is valid in the header:
+
+```razor
+<PageSection>
+    <Header><h2>Navigation</h2></Header>
+    <Body><h2>Wrong slot</h2></Body>
+</PageSection>
+```
+
+Contracts can also be applied to `RenderFragment<T>`. For example, a row template can receive a value while still emitting only menu items:
+
+```razor
+@Template?.Invoke(42)
+
+@code {
+    [Parameter, AllowedChildren(typeof(MenuItem))]
+    public RenderFragment<int>? Template { get; set; }
+}
+```
+
+Save that component as `RowTemplate.razor`. These callers show both outcomes:
+
+```razor
+<RowTemplate>
+    <Template Context="value"><MenuItem /></Template>
+</RowTemplate>
+@* Accepted: the context value does not change the permitted output. *@
+
+<RowTemplate>
+    <Template Context="value"><Bad /></Template>
+</RowTemplate>
+@* BCC005 in the second template. *@
+```
+
+### Forwarded permissions must fit the receiving slot
+
+An annotated wrapper can preserve its input promise when forwarding content:
+
+```razor
+<Menu ChildContent="@ChildContent" />
+
+@code {
+    [Parameter, AllowedChildren(typeof(MenuItem))]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+This declaration fits the receiving menu contract. Calling the wrapper with `<MenuItem />` passes; calling it with `<Bad />` fails at its own restricted parameter.
+
+If you widen the wrapper parameter to this, forwarding it into the same menu reports **BCC009**:
+
+```csharp
+[Parameter, AllowedChildren(typeof(MenuItem), typeof(Bad))]
+public RenderFragment? ChildContent { get; set; }
+```
+
+The wrapper promises callers it can accept `Bad`, while the receiving menu permits only `MenuItem`. That mismatch exists even if a particular caller currently supplies only menu items. Narrow the source promise or deliberately widen the receiver.
+
+Inherited parameter contracts remain in force. A derived component cannot replace a base restriction with a conflicting one; that reports BCC003.
+
+### Describe output from libraries
+
+`ProducesContent` describes fixed component or fragment-factory output; `ForwardsContent` names emitted fragment parameters. Available implementations are checked against their declarations. For example, this fragment factory promises menu-item output. Put it in the same namespace as `MenuItem`; replace `YourApp.Components` below with that namespace:
+
+```csharp
+using Microsoft.AspNetCore.Components;
+using PinguApps.BlazorContentContracts;
+
+namespace YourApp.Components;
+
+public static class MenuFragments
+{
+    [ProducesContent(typeof(MenuItem))]
+    public static RenderFragment Home()
+    {
+        return builder =>
+        {
+            builder.OpenComponent<MenuItem>(0);
+            builder.CloseComponent();
+        };
+    }
+}
+```
+
+```razor
+<Menu>@MenuFragments.Home()</Menu> @* Accepted. *@
+```
+
+If the available implementation instead emits a button, it contradicts its own declaration and reports **BCC010**. Compiled declarations are trusted at call sites; keep the promises accurate, including loading, empty and failure output. Supported inferred summaries also preserve inspectable output through project and NuGet references without hand-authoring attributes.
+
+For an explicit forwarding declaration, `PublishedMenuItems.razor` can promise that it emits no fixed content and forwards `ChildContent`:
+
+```razor
+@attribute [ProducesContent]
+@attribute [ForwardsContent("ChildContent")]
+
+@ChildContent
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+```razor
+<Menu><PublishedMenuItems><MenuItem /></PublishedMenuItems></Menu> @* Accepted. *@
+<Menu><PublishedMenuItems><Bad /></PublishedMenuItems></Menu>      @* BCC005. *@
+```
+
+The forwarding declaration preserves checking of the supplied content across a compiled library. It does not grant permission for arbitrary descendants.
+
+Consumer-owned `ExternalContent` and `ExternalForwarding` can describe third-party components. Nonempty fixed output claims require `Trusted = true`; review all possible output before making that promise.
 
 See the [contract schema and examples](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/contract-schema.md) and [buildable adoption examples](https://github.com/PinguApps/BlazorContentContracts/tree/main/samples/Adoption) for declarations, wrappers, forwarding and external components.
 
 ## Understand unknown output
 
 Unknown output is different from a proven violation. `MarkupString` reports BCC004; opaque fragments, runtime-selected components and unsupported rendering helpers report BCC006. Uncertainty does not hide known invalid content elsewhere in the same slot.
+
+For example, an unannotated fragment received from elsewhere has unknown output:
+
+```razor
+<Menu>@Fragment</Menu>
+
+@code {
+    [Parameter]
+    public RenderFragment? Fragment { get; set; }
+}
+```
+
+**BCC006 warning.** Add an accurate input contract where you own the parameter, provide inspectable inline content, or review and acknowledge the individual usage using the suppression syntax below.
+
+These two problems remain independent:
+
+```razor
+<Menu>
+    @Fragment
+    <Bad />
+</Menu>
+```
+
+With the same parameter declaration, this reports the **BCC006 warning and a BCC005 error**. Suppressing the unknown fragment does not make the known-invalid `Bad` output acceptable.
+
+Enabling text does not make raw markup inspectable:
+
+```razor
+<InlineContent>
+    @((MarkupString)"<button>Raw markup</button>")
+</InlineContent>
+```
+
+**BCC004 warning**, despite `InlineContent` allowing visible text. Raw markup could contain HTML outside the permitted tags.
 
 The analyzer does not execute application code or sanitize HTML. Declared output in unavailable implementations remains an author promise. See the [adoption guide](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/adoption.md) for framework templates, mutation and trust boundaries, and the suppression syntax below for one reviewed usage.
 

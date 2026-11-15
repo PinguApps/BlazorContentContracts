@@ -3,12 +3,17 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <TestCompilerVersion>5.9.0</TestCompilerVersion>
+    <TestCompilerVersion Condition="'$(MSBuildProjectName)' == 'PinguApps.BlazorContentContracts.Tests'">5.12.0</TestCompilerVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageVersion Include="PinguApps.BlazorContentContracts" Version="1.0.0" />
     <PackageVersion Include="PinguApps.BlazorContentContracts.Analyzers" Version="1.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(TestCompilerVersion)" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="$(TestCompilerVersion)" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="Reqnroll.xUnit" Version="3.3.4" />
     <PackageVersion Include="xunit" Version="2.9.3" />

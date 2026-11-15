@@ -2,7 +2,7 @@ Feature: Parameter contracts survive forwarding
 
     Scenario Outline: Compare the source permissions at the receiving boundary
         Given a forwarding parameter allowing '<permissions>' with usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then the forwarding build reports '<rule>' exactly <count> times
 
         Examples:

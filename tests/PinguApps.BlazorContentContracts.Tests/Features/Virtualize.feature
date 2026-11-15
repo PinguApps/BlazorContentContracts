@@ -2,7 +2,7 @@ Feature: Virtualize output preserves content checking
 
     Scenario Outline: Spacers and all template output obey the receiving contract
         Given a forwarding parameter allowing '<permissions>' with usage '<usage>'
-        When the real Razor SDK builds the consumer
+        When the Razor compiler analyses the consumer
         Then unresolved output has <unknown> warnings and <invalid> definite violations
 
         Examples:
