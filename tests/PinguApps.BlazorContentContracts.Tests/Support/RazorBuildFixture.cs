@@ -50,6 +50,19 @@ internal sealed class RazorBuildFixture : IDisposable
         ReadmeExamples.Write(directory, File.ReadAllText(Path.Combine(RepositoryRoot(), "README.md")), example);
     }
 
+    public void ThenUnsupportedProperty(string name, string value)
+    {
+        var path = Path.Combine(directory, "Consumer.csproj");
+        var project = System.Xml.Linq.XDocument.Load(path);
+        var group = project.Root!.Element("PropertyGroup")!;
+        group.Element(name)?.Remove();
+        group.Add(new System.Xml.Linq.XElement(name, value));
+        project.Save(path);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => RazorCompiler.Analyse(directory, analysis: true));
+        Assert.Contains("Use an @Sdk scenario", exception.Message);
+    }
+
     public void ThenReadmeDiagnostics(string expected)
     {
         using var sarif = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "diagnostics.sarif")));

@@ -28,6 +28,12 @@ public sealed class RazorBuildSteps : IDisposable
         fixture.ThenReadmeDiagnostics(expected);
     }
 
+    [Then("the direct compiler requires SDK coverage for property {string} with value {string}")]
+    public void ThenUnsupportedProperty(string name, string value)
+    {
+        fixture.ThenUnsupportedProperty(name, value);
+    }
+
     [Given("the adoption samples with {string}")]
     public void GivenAdoption(string change)
     {

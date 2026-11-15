@@ -20,6 +20,12 @@ their existing assertions for diagnostics, source spans, wrappers, generics,
 templates, mutation, branches, uncertainty and suppressions. Source fixtures are
 isolated, but these cases do not restore or build a new SDK project.
 
+The direct host rejects unmodelled project/compiler properties, conditional
+properties and unsupported MSBuild arguments rather than silently ignoring them.
+Such cases must use an `@Sdk` scenario. Its references come from the test host's
+runtime implementation assemblies, not framework reference packs; SDK-specific
+reference-surface and build behaviour remains covered by the real consumers.
+
 Compiled-library variations emit real assemblies and consume their metadata after
 the fixture deletes library source. The actual summary generator supplies the
 compiled contracts. This is compiler/metadata coverage; it does not establish

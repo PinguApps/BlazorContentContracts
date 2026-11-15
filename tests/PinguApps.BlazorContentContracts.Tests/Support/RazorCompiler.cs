@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -32,9 +33,23 @@ internal static class RazorCompiler
             .Select(path => (AdditionalText)new RazorSourceFile(path, File.ReadAllText(path))).ToImmutableArray();
         var projectPath = Directory.GetFiles(directory, "*.csproj").Single();
         var assemblyName = Path.GetFileNameWithoutExtension(projectPath);
-        var project = File.ReadAllText(projectPath);
-        var options = new RazorCompilerOptionsProvider(directory, project.Contains("<RootNamespace>Adoption</RootNamespace>", StringComparison.Ordinal)
-            ? "Adoption" : assemblyName);
+        var properties = XDocument.Load(projectPath).Root!.Elements("PropertyGroup").Elements().ToArray();
+        var supported = new[] { "TargetFramework", "RestorePackagesPath", "ErrorLog", "EmitCompilerGeneratedFiles",
+            "RootNamespace", "Nullable", "BlazorContentContractsEnabled" };
+
+        foreach (var property in properties)
+        {
+            if (!supported.Contains(property.Name.LocalName) || property.HasAttributes
+                || property.Parent!.HasAttributes
+                || property.Name.LocalName == "TargetFramework" && property.Value != "net11.0"
+                || property.Name.LocalName == "Nullable" && property.Value is not ("enable" or "disable"))
+            {
+                throw new InvalidOperationException($"Unmodelled compiler setting '{property}'. Use an @Sdk scenario.");
+            }
+        }
+
+        var rootNamespace = properties.SingleOrDefault(property => property.Name.LocalName == "RootNamespace")?.Value ?? assemblyName;
+        var options = new RazorCompilerOptionsProvider(directory, rootNamespace);
         var severity = ImmutableDictionary<string, ReportDiagnostic>.Empty;
         var config = Path.Combine(directory, ".globalconfig");
 
@@ -57,7 +72,7 @@ internal static class RazorCompiler
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path)));
         var compilation = CSharpCompilation.Create(assemblyName, trees, references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, specificDiagnosticOptions: severity,
-                nullableContextOptions: project.Contains("<Nullable>enable</Nullable>", StringComparison.Ordinal)
+                nullableContextOptions: properties.Any(property => property.Name.LocalName == "Nullable" && property.Value == "enable")
                     ? NullableContextOptions.Enable : NullableContextOptions.Disable));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new RazorSourceGenerator().AsSourceGenerator() },
             additional, parse, options);

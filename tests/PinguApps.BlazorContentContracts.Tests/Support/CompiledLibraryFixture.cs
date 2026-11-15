@@ -328,6 +328,11 @@ internal sealed class CompiledLibraryFixture : IDisposable
     {
         if (!useSdk)
         {
+            if (!arguments.SequenceEqual(new[] { "build" }) && !arguments.SequenceEqual(new[] { "pack", "-o", directory }))
+            {
+                throw new InvalidOperationException("Unmodelled MSBuild arguments. Use an @Sdk scenario.");
+            }
+
             var projectDirectory = Path.Combine(directory, project);
             var enabled = !File.ReadAllText(Path.Combine(projectDirectory, project + ".csproj"))
                 .Contains("<BlazorContentContractsEnabled>false</BlazorContentContractsEnabled>", StringComparison.Ordinal);
