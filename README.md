@@ -1,117 +1,136 @@
 # PinguApps.BlazorContentContracts
 
-Build-time checking of Blazor component content contracts. Component authors describe permitted components, HTML elements and text; analyzers check Razor usage, wrappers and forwarded fragments.
+[![PinguApps.BlazorContentContracts version](https://img.shields.io/nuget/v/PinguApps.BlazorContentContracts?style=for-the-badge&label=PinguApps.BlazorContentContracts)](https://www.nuget.org/packages/PinguApps.BlazorContentContracts/) [![PinguApps.BlazorContentContracts downloads](https://img.shields.io/nuget/dt/PinguApps.BlazorContentContracts?style=for-the-badge&label=downloads)](https://www.nuget.org/packages/PinguApps.BlazorContentContracts/)
 
-Start with the [adoption guide](docs/adoption.md) and [buildable Razor examples](samples/Adoption). They cover permissions, wrappers, output declarations, framework behaviour, uncertainty and local suppression. Checking provides no runtime or security guarantee. No public NuGet release exists yet; use repository artifacts.
+[![PinguApps.BlazorContentContracts.Analyzers version](https://img.shields.io/nuget/v/PinguApps.BlazorContentContracts.Analyzers?style=for-the-badge&label=PinguApps.BlazorContentContracts.Analyzers)](https://www.nuget.org/packages/PinguApps.BlazorContentContracts.Analyzers/) [![PinguApps.BlazorContentContracts.Analyzers downloads](https://img.shields.io/nuget/dt/PinguApps.BlazorContentContracts.Analyzers?style=for-the-badge&label=downloads)](https://www.nuget.org/packages/PinguApps.BlazorContentContracts.Analyzers/)
 
-The repository contains the solution, annotation assembly, analyzer host, smoke harness and package verification. Restricted slots analyse local wrapper output at original Razor usage spans. See [the mapping proof](samples/RazorMapping/README.md) for its explicit consumer setup and limits. No NuGet package has been released.
+**Declare what belongs inside your Blazor components and catch invalid content when you build.** A menu can accept only menu items; a table slot can accept only rows; a text slot can allow selected HTML tags. Content contracts make these expectations explicit and report mistakes at the original Razor usage, before they reach your users.
 
-## Build and verify
+Checking follows local wrappers, forwarded fragments and supported compiled library contracts. You can extract reusable components without losing the rules on the content they produce. Known violations are errors; output the analyzer cannot establish produces warnings so you can review it.
 
-Install the SDK selected by `global.json`, then run `dotnet run --file scripts/verify.cs`.
-This builds the solution and packs both packages into
-`artifacts/packages`, then runs the smoke test and real Razor SDK build scenarios against those packages.
-It checks package layouts and release tracking, and builds/runs an
-independent .NET 11 consumer restored from those exact packages with an isolated
-package cache. The consumer checks analyzer discovery and runtime dependency separation.
-Real Razor scenarios also run with SDK 10.0.403 targeting .NET 10. Install both SDKs; when they have separate roots, set `BCC_NET10_DOTNET` to the absolute .NET 10 executable path. CI runs the same command and retains the NuGet artifacts without publishing them.
+For **.NET 10 and .NET 11 Blazor**. Checking runs at compile time, with no runtime enforcement or security guarantee.
 
-Both packages target `netstandard2.0`; repository tests and samples target .NET 11. The annotation package has no Roslyn dependency. The analyzer package carries its
-assembly under `analyzers/dotnet/cs` and excludes compiler dependencies and runtime
-assets. Installing the annotation package activates checking automatically, including through library packages and project references. See [package activation](docs/package-activation.md) for asset policy and opt-outs.
-Allowed components match symbols, base classes and open or closed generic families, and stop expansion. Local wrappers are expanded recursively; proven-empty components pass and unavailable implementations warn. HTML containers and their descendants are checked independently of text permission; BCC005 rejects forbidden HTML/text and BCC004 warns for opaque markup. Add future rules directly to
-`AnalyzerReleases.Shipped.md` under `1.0.0`; `Unshipped` is a comment-only file
-retained for Roslyn's release-tracking tooling. Release tracking warnings fail the build.
-The verification command disables .NET's automatic global-tools PATH integration
-and checks saved Windows user/machine PATH values before and after execution.
+## Installation
 
-## Repository and release baseline
+Install in the Blazor app or component library that declares or uses contracts:
 
-- Repository: https://github.com/PinguApps/BlazorContentContracts
-- Default branch: `main`.
-- Licence: MIT; copyright PinguApps.
-- Planned package IDs: `PinguApps.BlazorContentContracts` and `PinguApps.BlazorContentContracts.Analyzers`.
-- Intended first stable version: `1.0.0` for both packages. This is a release target, not an existing release.
+```sh
+dotnet add package PinguApps.BlazorContentContracts --version 1.0.0
+```
+
+The main package supplies the attributes and activates the analyzer automatically, including through component-library dependencies. No separate analyzer installation or service registration is required. Keep the default flowing package assets; see [activation and opt-outs](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/package-activation.md) for custom asset policies.
+
+Add the namespace to `_Imports.razor`:
+
+```razor
+@using PinguApps.BlazorContentContracts
+```
+
+## Accept only specific components
+
+Create `Menu.razor` with a restricted `ChildContent` parameter:
+
+```razor
+@using Microsoft.AspNetCore.Components
+@using PinguApps.BlazorContentContracts
+
+<nav>@ChildContent</nav>
+
+@code {
+    [Parameter, AllowedChildren(typeof(MenuItem))]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+For this example, `MenuItem.razor` renders a link:
+
+```razor
+<a href="/">Home</a>
+```
+
+This works:
+
+```razor
+<Menu>
+    <MenuItem />
+    <MenuItem />
+</Menu>
+```
+
+These usages fail with BCC005:
+
+```razor
+<Menu>
+    <div>Not a menu item</div>
+</Menu>
+
+<Menu>
+    Plain text is not a menu item
+</Menu>
+```
+
+`MenuItem` and its derived components are accepted as boundaries: their own HTML and text are not expanded. Other inspectable components are expanded and their output must fit the contract. A local wrapper that emits only `MenuItem` works; a wrapper that adds a `div` does not.
+
+Empty content is valid. Whitespace and Razor comments do not count as visible text. Contracts do not require a parent, a minimum number of children or a particular runtime parameter combination.
+
+## Allow selected HTML and text
+
+Create `InlineContent.razor`:
+
+```razor
+@using Microsoft.AspNetCore.Components
+@using PinguApps.BlazorContentContracts
+
+@ChildContent
+
+@code {
+    [Parameter, AllowedChildren(HtmlElements = new[] { "span", "strong" }, AllowText = true)]
+    public RenderFragment? ChildContent { get; set; }
+}
+```
+
+This works:
+
+```razor
+<InlineContent>
+    Hello <span><strong>world</strong></span>
+</InlineContent>
+```
+
+This fails with BCC005 because allowing a container does not allow arbitrary descendants:
+
+```razor
+<InlineContent>
+    <span><div>Still forbidden</div></span>
+</InlineContent>
+```
+
+`HtmlElements` defaults to empty and matches names without case sensitivity. `AllowText` defaults to `false`, including inside permitted HTML. You can combine HTML/text permissions with component types in the same attribute.
+
+## Generics, named slots and composition
+
+- `AllowedChildren(typeof(Row<>))` accepts every constructed `Row<T>` and its derived components. `typeof(Row<int>)` accepts that construction and its subclasses, but not `Row<string>`.
+- Apply a contract to each named `RenderFragment` or `RenderFragment<T>` parameter independently. Inherited parameter contracts remain in force; conflicting redeclarations report BCC003.
+- Every possible branch, loop body and emitted template is checked. A currently false branch does not make invalid content acceptable.
+- Annotated fragments keep their permissions when forwarded. Those permissions must fit entirely inside the receiving contract (BCC009).
+- `ProducesContent` describes fixed component or fragment-factory output; `ForwardsContent` describes emitted fragment parameters. Available implementations are checked against these promises. Supported compiled summaries preserve output across project and NuGet references.
+- Consumer-owned `ExternalContent` and `ExternalForwarding` attributes can describe third-party components. Nonempty fixed output claims require explicit `Trusted = true` and review of the component's possible output.
+
+See the [contract schema and examples](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/contract-schema.md) and [buildable adoption examples](https://github.com/PinguApps/BlazorContentContracts/tree/main/samples/Adoption) for declarations, wrappers, forwarding and external components.
+
+## Understand unknown output
+
+Unknown output is different from a proven violation. `MarkupString` reports BCC004; opaque fragments, runtime-selected components and unsupported rendering helpers report BCC006. Uncertainty does not hide known invalid content elsewhere in the same slot.
+
+The analyzer does not execute application code or sanitize HTML. Declared output in unavailable implementations remains an author promise. See the [adoption guide](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/adoption.md) for framework templates, mutation and trust boundaries, and the suppression syntax below for one reviewed usage.
 
 ## Initial compatibility targets
 
-The [framework behaviour catalogue](docs/framework-catalogue.md) documents dependency
-identity/version selection and how to qualify entries, separately from this SDK/compiler host matrix.
+- **Build checking:** .NET 10 with SDK 10.0.403 and .NET 11 with SDK 11.0.100 (later patches in 11.0.1xx permitted). .NET 8, .NET 9 and preview SDKs are outside the qualified matrix.
+- **Live editor feedback:** Visual Studio 18.11 and VS Code 1.139 with .NET 10 consumers. Rider and .NET 11 live editing are not qualified. See [editor support](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/editor-support.md) for exact extensions, save/rebuild boundaries and the opt-in VS Code suppression action.
+- **Compiler hosts:** Roslyn 5.9 on .NET 10 and 5.12 on .NET 11. Both packages target netstandard2.0; this does not imply support for older compiler hosts. Compiler dependencies stay separate from the runtime annotation assembly.
 
-The build targets below are checked by package verification. Live support is limited to the separately recorded editor qualification.
-
-- Repository build SDK: .NET SDK `11.0.100`, with later patches in the `11.0.1xx` feature band permitted by `latestPatch`; previews are disabled.
-- Consumer framework and Razor: .NET 11 (`net11.0`), ASP.NET Core/Razor 11 using the Razor tooling bundled with the selected SDK. .NET 10 consumers on SDK `10.0.403` remain supported and are verified against the same packed artifacts. .NET 8, .NET 9 and preview SDKs are outside this scope.
-- Build analyzer host: Roslyn `5.12` supplied by SDK `11.0.100` (the analyzer retains Roslyn `5.9` dependencies for .NET 10 host compatibility). The analyzer assembly targets `netstandard2.0`, following the existing PinguApps analyzer convention; that assembly target does not promise support for older compiler hosts or consumer frameworks. Keep compiler dependencies separate from the runtime annotation assembly.
-- Qualified live editor hosts: Visual Studio 18.11 and VS Code 1.139 with .NET 10 consumers. See [editor qualification](docs/editor-support.md) for exact extension/compiler versions, repeatable fixtures, save/rebuild boundaries and action limitations. Rider and .NET 11 live editing are not qualified.
-- CLI build support and live-editor qualification are separate evidence. The editor record covers original Razor spans, wrappers, library contracts and the opt-in VS Code suppression action; Visual Studio insertion remains manual.
-
-## Scope of this setup
-
-PIN-1247 establishes the repository and support baseline. The setup follows the `.gitignore`, `.gitattributes`, MIT licence and SDK selection conventions used by [BlazorSitemap](https://github.com/PinguApps/BlazorSitemap) and [CodeStyle.Analyzers](https://github.com/PinguApps/CodeStyle.Analyzers).
-
-The [Linear project](https://linear.app/pinguapps/project/blazorcontentcontracts-d6e2b8fc0fa0) and its [agreed requirements](https://linear.app/pinguapps/document/agreed-scope-and-delivery-requirements-92ad0139880c) remain the delivery plan:
-
-- PIN-1248: solution, annotation/analyzer projects, test harness, CI, packaging and shipped diagnostic tracking.
-- PIN-1278: Renovate and the shared PinguApps preset.
-- PIN-1279: portfolio package metadata, PR template, labels and release drafting.
-- PIN-1271: full documentation and executable examples.
-- PIN-1273, PIN-1275 and PIN-1276: release workflow, trusted publishing access and first stable publication.
-
-No publishing credentials are needed for this setup.
-
-## Release drafts and package metadata
-
-The PR template's checked categories become labels and Release Drafter groups
-merged PRs into release notes, including `dependencies`. Select `patch`, `minor`
-or `major` for the intended package compatibility impact; the highest selected
-increment wins, with patch as the default. Breaking API or diagnostic behaviour
-requires major; additive compatible behaviour uses minor; fixes use patch.
-Renovate's `type/*` labels describe dependency updates, not this package's SemVer.
-
-Pushes to `main` and manual dispatch of Release Drafter update a draft with
-matching `v`-prefixed names and tags. Drafting never publishes a release or NuGet
-package. Before the first stable release, the maintainer must deliberately set
-and verify both draft name and tag to `v1.0.0`; the resolver's initial suggestion
-is not approval to publish. Preview releases are deliberate manual work: use a
-matching name/tag such as `v1.0.0-preview.1` and mark the release as a prerelease.
-Do not treat an automatically updated stable draft as a preview, or publish it
-without the later release workflow and human first-publication gate. Weekly
-publication remains inactive until its separate qualification and approval.
-
-Both packages embed this README and the MIT licence, with PinguApps author and
-repository metadata. The .NET SDK supplies GitHub SourceLink; deterministic
-builds embed untracked sources and CI normalizes source paths. Portable symbols
-are produced as `.snupkg` artifacts; the analyzer also carries its PDB beside its
-assembly under `analyzers/dotnet/cs`, without adding runtime assets or compiler
-dependencies. These settings preserve the existing framework/compiler matrix.
-
-## Dependency maintenance
-
-Renovate uses the shared `local>PinguApps/renovate-config` preset, including
-reviewers, dependency labels, release-age delays and GitHub Action SHA pinning.
-Its [Dependency Dashboard](https://github.com/PinguApps/BlazorContentContracts/issues/3)
-confirms hosted access and detection of central NuGet versions, `global.json`
-(through the NuGet manager), and GitHub Actions. No separate workflow is required.
-Default manager discovery remains enabled for future toolchain files.
-
-Local rules allow newer SDK and compiler versions to appear in the dashboard,
-including newer SDK feature bands and .NET major versions.
-Updates outside the qualified SDK `11.0.1xx` band (including bundled Razor tooling)
-or Roslyn `5.9.x` baseline require Dependency Dashboard approval before Renovate
-creates a PR; patch updates within those baselines follow the shared policy.
-Approve the dashboard entry to request an upgrade PR, then qualify the
-version-specific Razor sample and real consumers before merging it. Update these
-approval rules when qualifying a new baseline. Using a newer build SDK does not
-by itself change the supported consumer target framework. Ordinary test dependencies and pinned Actions
-continue to receive update proposals under the shared policy; no broad automerge
-is enabled. The two own-package references are maintained with local package
-artifacts and release versions, so Renovate does not look them up on NuGet.org.
-Samples and tests remain discoverable rather than receiving blanket exclusions.
-
-The planned weekly publishing channel includes dependency changes merged into
-`main`. Open or unmerged Renovate PRs are not included. Publishing setup and
-activation remain separate release work.
+The [framework catalogue](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/framework-catalogue.md) explains supported framework components, including authorization alternatives, error fallbacks, virtualization and relocated content.
 
 ## Diagnostics
 
@@ -178,18 +197,17 @@ expressions. Comments add no runtime components and do not change rendering.
 Malformed directives report BCC007; valid directives that suppress nothing report
 BCC008 at the comment. Missing or ambiguous source mapping leaves the suppression
 unused rather than exempting a broader region. Package consumers receive Razor
-`AdditionalFiles` automatically; see [package activation](docs/package-activation.md)
+`AdditionalFiles` automatically; see [package activation](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/package-activation.md)
 for asset policies and opt-outs. Standard C# suppression/configuration remains available
 for diagnostics with C# locations; a C# pragma does not cover an external Razor
 diagnostic span.
 
-The executable Gherkin fixtures in [RazorSuppressions.feature](tests/PinguApps.BlazorContentContracts.Tests/Features/RazorSuppressions.feature) exercise
+The executable Gherkin fixtures in [RazorSuppressions.feature](https://github.com/PinguApps/BlazorContentContracts/blob/main/tests/PinguApps.BlazorContentContracts.Tests/Features/RazorSuppressions.feature) exercise
 real `.razor` consumers on .NET 10/11 with the packed artifacts.
-[Suppression.razor](samples/RazorMapping/Suppression.razor) is a reusable editor
+[Suppression.razor](https://github.com/PinguApps/BlazorContentContracts/blob/main/samples/RazorMapping/Suppression.razor) is a reusable editor
 fixture: removing either comment should restore its unknown-output diagnostic;
-duplicating the expression should leave the sibling checked. Per the agreed
-PIN-1255 scope, build evidence alone does not establish live-editor support. See
-[editor qualification](docs/editor-support.md) for PIN-1270's separate host evidence
+duplicating the expression should leave the sibling checked. Build evidence alone does not establish live-editor support. See
+[editor qualification](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/editor-support.md) for separate host evidence
 and suppression-action limitations.
 
 ## Public contract declarations
@@ -198,14 +216,14 @@ Consumers can describe unmodified third-party wrappers locally with assembly-lev
 `ExternalContent` and `ExternalForwarding` attributes. Forwarded descendants remain
 checked. Fixed/default output claims require explicit `Trusted = true`; mappings
 bind exact symbols and do not extend to derived rendering overrides. See
-[external descriptions](docs/contract-schema.md#consumer-descriptions-of-external-components)
+[external descriptions](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/contract-schema.md#consumer-descriptions-of-external-components)
 for generic support, precedence and the consumer trust boundary.
 
 `AllowedChildren`, `ProducesContent` and `ForwardsContent` describe fragment inputs,
-fixed output and transparent forwarding. See [metadata schema v1](docs/contract-schema.md)
+fixed output and transparent forwarding. See [metadata schema v1](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/contract-schema.md)
 for supported targets, defaults, examples and inheritance rules. BCC002 validates
 declarations and BCC003 rejects conflicting inherited declarations without executing
-application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Explicit output contracts are checked against available implementations and trusted at calls, including referenced assemblies. Unavailable implementations remain an author promise with no runtime guarantee; bounded inferred summaries now survive project and NuGet references. See [compiled summary schema v1](docs/contract-schema.md#compiled-summary-schema-v1) for supported output and build costs. BCC014 warns for incompatible compiled metadata.
+application code. Local wrapper composition follows every emitted template, including alternative and typed templates. Unused templates do not contribute output. Findings include the wrapper path. Explicit output contracts are checked against available implementations and trusted at calls, including referenced assemblies. Unavailable implementations remain an author promise with no runtime guarantee; bounded inferred summaries now survive project and NuGet references. See [compiled summary schema v1](https://github.com/PinguApps/BlazorContentContracts/blob/main/docs/contract-schema.md#compiled-summary-schema-v1) for supported output and build costs. BCC014 warns for incompatible compiled metadata.
 
 Annotated fragment parameters preserve their permissions when forwarded, including typed
 and inherited parameters. The source contract must fit entirely inside the receiving
@@ -239,6 +257,3 @@ can be promoted using `dotnet_diagnostic.BCC012.severity = error` and
 Source/body caches live only within one receiving-contract analysis. Render bodies are
 keyed by constructed component symbols; fragment sources by syntax identity. Validated
 output is never cached across contracts or supplied templates, and edits start fresh.
-
-Stable release workflow, dry runs, artifact evidence and trusted identity are described
-in [publishing](docs/publishing.md).

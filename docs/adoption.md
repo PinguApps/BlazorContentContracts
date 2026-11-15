@@ -7,22 +7,15 @@ child counts or IntelliSense filtering. Empty content is always valid.
 
 ## Install and try
 
-No public package has been released yet. Build local artifacts using the SDKs in
-the [support matrix](../README.md#initial-compatibility-targets):
+Install the package in your Blazor application or component library:
 
-```powershell
-$env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
-dotnet run --file scripts/verify.cs
-dotnet build samples/Adoption/Adoption.csproj --source ./artifacts/packages
+```sh
+dotnet add package PinguApps.BlazorContentContracts --version 1.0.0
 ```
 
-Use the absolute path of your installed `dotnet` executable when running these
-commands. The environment variable disables automatic global-tools PATH setup;
-do not change process or saved PATH. Local artifacts are version 1.0.0, the
-intended first stable version, rather than evidence of a public release.
-The sample is a Razor component library: build it; it is not a hosted web app.
-Framework examples demonstrate compile-time output analysis and require their
-normal Blazor services/context if used in a running application.
+See the [support matrix](../README.md#initial-compatibility-targets) before adopting.
+The [sample](../samples/Adoption) is a Razor component library, not a hosted app.
+Framework examples require their normal Blazor services/context in a running app.
 
 For adoption in a centrally managed repository, add version 1.0.0 for
 `PinguApps.BlazorContentContracts` to `Directory.Packages.props` and add:
@@ -31,9 +24,7 @@ For adoption in a centrally managed repository, add version 1.0.0 for
 <PackageReference Include="PinguApps.BlazorContentContracts" />
 ```
 
-Outside central management use `Version="1.0.0"` on that reference, selecting
-the actual released version once available. Restore from your local artifact feed
-until publication. The annotation dependency activates the analyzer automatically
+Outside central management use `Version="1.0.0"` on that reference. The annotation dependency activates the analyzer automatically
 through library packages and project references. Keep its default flowing assets.
 See [activation and opt-outs](package-activation.md) before using PrivateAssets,
 IncludeAssets or ExcludeAssets. The analyzer is not a runtime dependency.
